@@ -17,14 +17,19 @@ class TestPCDiagnostic(unittest.TestCase):
         self.assertIn("os", diag)
         self.assertIn("uptime", diag["os"])
 
-    def test_hardware_benchmarks(self):
+    def test_advanced_hardware_benchmarks(self):
         benchmarks = system_hardware_benchmarks.run_all_hardware_benchmarks()
         self.assertIn("cpu", benchmarks)
         self.assertIn("ops_per_sec", benchmarks["cpu"])
         self.assertIn("ram", benchmarks)
-        self.assertIn("write_speed", benchmarks["ram"])
+        self.assertIn("write_read_speed", benchmarks["ram"])
+        self.assertIn("errors_found", benchmarks["ram"])
         self.assertIn("disk", benchmarks)
-        self.assertIn("read_speed", benchmarks["disk"])
+        self.assertIn("iops_4k", benchmarks["disk"])
+        self.assertIn("latency", benchmarks["disk"])
+        self.assertIn("gpu", benchmarks)
+        self.assertIn("fps", benchmarks["gpu"])
+        self.assertIn("score_3d", benchmarks["gpu"])
         self.assertIn("battery", benchmarks)
 
     def test_synthesis_score_particulier(self):

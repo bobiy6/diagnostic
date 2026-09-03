@@ -10,7 +10,7 @@ class SynthesisView(ctk.CTkFrame):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
         header_frame.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
 
-        title = ctk.CTkLabel(header_frame, text="Synthèse Générale & État de Vie du Matériel", font=ctk.CTkFont(size=18, weight="bold"))
+        title = ctk.CTkLabel(header_frame, text="Synthèse Générale & Bilan de Santé Matériel", font=ctk.CTkFont(size=18, weight="bold"))
         title.pack(side="left")
 
         btn_calc = ctk.CTkButton(header_frame, text="Calculer Bilan & Santé", width=160, command=self.update_synthesis)
@@ -39,6 +39,7 @@ class SynthesisView(ctk.CTkFrame):
         out += f" • PROCESSEUR (CPU) : {synth.get('cpu_health', 'Bon')}\n"
         out += f" • MÉMOIRE (RAM)    : {synth.get('ram_health', 'Bon')}\n"
         out += f" • STOCKAGE DISQUE  : {synth.get('disk_health', 'Bon')}\n"
+        out += f" • CARTE GRAPHIQUE  : {synth.get('gpu_health', 'Bon')}\n"
         out += f" • BATTERIE         : {synth.get('battery_health', 'Non disponible')}\n\n"
 
         out += "[PROBLÈMES & ANOMALIES IDENTIFIÉS]\n"
