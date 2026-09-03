@@ -1,0 +1,4 @@
+customtkinter>=6.0.0
+psutil>=7.0.0
+reportlab>=4.0.0
+pyinstaller>=6.0.0
