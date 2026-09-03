@@ -2,15 +2,30 @@ import os
 import unittest
 import pdf_report
 import system_diag
+import system_hardware_benchmarks
 
 class TestPCDiagnostic(unittest.TestCase):
-    def test_system_diag_structure(self):
+    def test_system_diag_detailed_structure(self):
         diag = system_diag.get_system_diagnostics()
         self.assertIn("cpu", diag)
+        self.assertIn("freq", diag["cpu"])
         self.assertIn("ram", diag)
+        self.assertIn("swap", diag["ram"])
         self.assertIn("disks", diag)
         self.assertIn("battery", diag)
+        self.assertIn("wearEstimation", diag["battery"])
         self.assertIn("os", diag)
+        self.assertIn("uptime", diag["os"])
+
+    def test_hardware_benchmarks(self):
+        benchmarks = system_hardware_benchmarks.run_all_hardware_benchmarks()
+        self.assertIn("cpu", benchmarks)
+        self.assertIn("ops_per_sec", benchmarks["cpu"])
+        self.assertIn("ram", benchmarks)
+        self.assertIn("write_speed", benchmarks["ram"])
+        self.assertIn("disk", benchmarks)
+        self.assertIn("read_speed", benchmarks["disk"])
+        self.assertIn("battery", benchmarks)
 
     def test_synthesis_score_particulier(self):
         client_data = {"clientType": "Particulier", "date": "2026-09-01"}
@@ -30,11 +45,13 @@ class TestPCDiagnostic(unittest.TestCase):
         filepath = "/tmp/test_unit_report.pdf"
         if os.path.exists(filepath):
             os.remove(filepath)
+        benchmarks = system_hardware_benchmarks.run_all_hardware_benchmarks()
         pdf_report.generate_pdf_report(
             filepath,
             {"clientName": "Unit Test Client"},
             {"checklist": {}},
-            system_diag.get_system_diagnostics()
+            system_diag.get_system_diagnostics(),
+            benchmarks
         )
         self.assertTrue(os.path.exists(filepath))
 

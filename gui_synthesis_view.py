@@ -10,13 +10,13 @@ class SynthesisView(ctk.CTkFrame):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
         header_frame.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
 
-        title = ctk.CTkLabel(header_frame, text="Synthèse Générale du Diagnostic", font=ctk.CTkFont(size=18, weight="bold"))
+        title = ctk.CTkLabel(header_frame, text="Synthèse Générale & État de Vie du Matériel", font=ctk.CTkFont(size=18, weight="bold"))
         title.pack(side="left")
 
-        btn_calc = ctk.CTkButton(header_frame, text="Calculer la Synthèse", width=140, command=self.update_synthesis)
+        btn_calc = ctk.CTkButton(header_frame, text="Calculer Bilan & Santé", width=160, command=self.update_synthesis)
         btn_calc.pack(side="right")
 
-        self.textbox_synth = ctk.CTkTextbox(self, height=380, font=ctk.CTkFont(family="Courier", size=12))
+        self.textbox_synth = ctk.CTkTextbox(self, height=420, font=ctk.CTkFont(family="Courier", size=12))
         self.textbox_synth.grid(row=1, column=0, padx=20, pady=10, sticky="nsew")
 
         self.parent_app = parent
@@ -29,21 +29,27 @@ class SynthesisView(ctk.CTkFrame):
 
         synth = pdf_report.calculate_synthesis(client_data, questionnaire, auto_data, test_results)
 
-        out = f"=== SYNTHÈSE DU DIAGNOSTIC ===\n\n"
+        out = f"=== BILAN DE SANTÉ & ÉTAT DE VIE DU MATÉRIEL ===\n\n"
         out += f"NOTE DE SANTÉ GLOBALE : {synth['score']} / 100\n"
         out += f"NIVEAU D'URGENCE : {synth['urgency']}\n"
         out += f"INTERVALLE MAINTENANCE : {synth['maintenanceInterval']}\n"
         out += f"PROCHAINE MAINTENANCE CONSEILLÉE : {synth['nextMaintenanceDate']}\n\n"
 
-        out += "[PROBLÈMES IDENTIFIÉS]\n"
+        out += "[ÉTAT DE VIE DE CHAQUE COMPOSANT]\n"
+        out += f" • PROCESSEUR (CPU) : {synth.get('cpu_health', 'Bon')}\n"
+        out += f" • MÉMOIRE (RAM)    : {synth.get('ram_health', 'Bon')}\n"
+        out += f" • STOCKAGE DISQUE  : {synth.get('disk_health', 'Bon')}\n"
+        out += f" • BATTERIE         : {synth.get('battery_health', 'Non disponible')}\n\n"
+
+        out += "[PROBLÈMES & ANOMALIES IDENTIFIÉS]\n"
         if synth['problems']:
             for p in synth['problems']:
                 out += f" • {p}\n"
         else:
-            out += " • Aucun problème majeur détecté.\n"
+            out += " • Aucun dysfonctionnement ou anomalie détectée.\n"
         out += "\n"
 
-        out += "[ACTIONS RÉALISÉES OU PRÉCONISÉES]\n"
+        out += "[ACTIONS DE MAINTENANCE RÉALISÉES / CONSEILLÉES]\n"
         if synth['actions']:
             for a in synth['actions']:
                 out += f" • {a}\n"
@@ -51,7 +57,7 @@ class SynthesisView(ctk.CTkFrame):
             out += " • Aucune action corrective immédiate requise.\n"
         out += "\n"
 
-        out += "[RECOMMANDATIONS DU TECHNICIEN]\n"
+        out += "[RECOMMANDATIONS TECHNICIEN]\n"
         for r in synth['recommendations']:
             out += f" • {r}\n"
 

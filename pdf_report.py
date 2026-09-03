@@ -4,7 +4,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from reportlab.graphics.shapes import Drawing, Rect, String, Group
+from reportlab.graphics.shapes import Drawing, Rect, String
 
 def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None):
     score = 100
@@ -12,6 +12,32 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
     actions = []
     recommendations = []
 
+    # Benchmark results evaluation
+    cpu_health = "Bon"
+    ram_health = "Bon"
+    disk_health = "Bon"
+    battery_health = auto_data.get("battery", {}).get("health", "Non disponible")
+
+    if test_results:
+        disk_res = test_results.get("disk", {})
+        if disk_res.get("health") == "Dégradé / À remplacer":
+            score -= 25
+            disk_health = "Dégradé / À remplacer"
+            problems.append(f"Vitesse de transfert disque anormalement lente ({disk_res.get('write_speed', 'N/A')})")
+            actions.append("Remplacement recommandé par un SSD NVMe / SATA rapide")
+        elif disk_res.get("health") == "Usure modérée / Ralentissement probable":
+            score -= 10
+            disk_health = "Usure modérée (HDD Mécanique)"
+            recommendations.append("Envisager le passage à un SSD pour multiplier par 5 la vitesse")
+
+        batt_res = test_results.get("battery", {})
+        if batt_res.get("health") == "À remplacer":
+            score -= 15
+            battery_health = "Fortement dégradée (À remplacer)"
+            problems.append(f"Batterie usée ({batt_res.get('estimated_wear', 'N/A')})")
+            actions.append("Remplacement de la batterie recommandé")
+
+    # Checklist evaluation
     checklist = questionnaire.get("checklist", {})
     if checklist.get("dustCleaned") == "non":
         score -= 10
@@ -24,8 +50,9 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
 
     if checklist.get("diskScanOk") == "non":
         score -= 20
+        disk_health = "Anomalie / Secteurs défectueux"
         problems.append("Anomalies ou secteurs défectueux détectés sur le disque")
-        actions.append("Remplacement du disque par un SSD recommandé")
+        actions.append("Remplacement impératif du disque")
 
     if checklist.get("malwareCheck") == "non":
         score -= 15
@@ -40,7 +67,7 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
     issues_nature = questionnaire.get("issuesNature", "")
     if issues_nature and issues_nature.strip():
         score -= 10
-        problems.append(f"Problème identifié : {issues_nature}")
+        problems.append(f"Symptôme / Problème signalé : {issues_nature}")
 
     replaced_comps = questionnaire.get("replacedComponents", [])
     for comp in replaced_comps:
@@ -73,19 +100,21 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
         base_date = datetime.datetime.now()
 
     if is_pro:
-        # +6 months
         month = base_date.month + 6
         year = base_date.year + (month - 1) // 12
         month = (month - 1) % 12 + 1
         day = min(base_date.day, 28)
         next_maint_date = datetime.date(year, month, day).strftime("%Y-%m-%d")
     else:
-        # +1 year
         next_maint_date = datetime.date(base_date.year + 1, base_date.month, min(base_date.day, 28)).strftime("%Y-%m-%d")
 
     return {
         "score": score,
         "urgency": urgency,
+        "cpu_health": cpu_health,
+        "ram_health": ram_health,
+        "disk_health": disk_health,
+        "battery_health": battery_health,
         "problems": problems,
         "actions": actions,
         "recommendations": recommendations,
@@ -95,13 +124,10 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
 
 def create_logo_drawing():
     d = Drawing(36, 36)
-    # Background badge
     d.add(Rect(0, 0, 36, 36, rx=6, ry=6, fillColor=colors.HexColor('#2563EB'), strokeColor=None))
-    # PC Screen representation
     d.add(Rect(6, 12, 24, 16, rx=2, ry=2, fillColor=colors.white, strokeColor=None))
     d.add(Rect(14, 6, 8, 4, fillColor=colors.HexColor('#CBD5E1'), strokeColor=None))
     d.add(Rect(10, 4, 16, 2, fillColor=colors.HexColor('#94A3B8'), strokeColor=None))
-    # Inner check/pulse symbol string
     d.add(String(13, 17, "PC", fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor('#2563EB')))
     return d
 
@@ -163,13 +189,13 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     elements = []
 
-    # Title & Header Banner with Logo
+    # Title Banner with Logo
     header_table_data = [
         [
             create_logo_drawing(),
             [
                 Paragraph("PC DIAGNOSTIC & RAPPORT", title_style),
-                Paragraph("Fiche Technique d'Intervention & Bilan de Diagnostic", subtitle_style)
+                Paragraph("Rapport d'Expertise Technique & État de Santé Matériel", subtitle_style)
             ]
         ]
     ]
@@ -185,7 +211,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     elements.append(t_header)
     elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2563EB'), spaceAfter=12))
 
-    # 1. Client & PC Info Table
+    # 1. Client & PC Info
     elements.append(Paragraph("1. INFORMATIONS CLIENT & MACHINE", section_heading))
     client_table_data = [
         [
@@ -218,8 +244,8 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     elements.append(Spacer(1, 10))
 
-    # 2. Diagnostic Synthesis Table
-    elements.append(Paragraph("2. SYNTHÈSE DU DIAGNOSTIC", section_heading))
+    # 2. Synthesis Score Table
+    elements.append(Paragraph("2. SYNTHÈSE DE SANTÉ & ÉTAT DE VIE", section_heading))
 
     score_color = colors.HexColor('#16A34A') if synthesis['score'] >= 80 else (colors.HexColor('#D97706') if synthesis['score'] >= 60 else colors.HexColor('#DC2626'))
 
@@ -228,6 +254,11 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
             Paragraph(f"<b>Note de Santé Global :</b> <font color='{score_color}'><b>{synthesis['score']} / 100</b></font>", normal_text),
             Paragraph(f"<b>Niveau d'Urgence :</b> {synthesis['urgency']}", normal_text),
             Paragraph(f"<b>Prochaine Maintenance :</b> {synthesis['nextMaintenanceDate']}", normal_text)
+        ],
+        [
+            Paragraph(f"<b>Santé CPU :</b> {synthesis['cpu_health']}", normal_text),
+            Paragraph(f"<b>Santé RAM :</b> {synthesis['ram_health']}", normal_text),
+            Paragraph(f"<b>Santé Disque :</b> {synthesis['disk_health']}", normal_text)
         ]
     ]
 
@@ -235,8 +266,8 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     t_synth.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F1F5F9')),
         ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#CBD5E1')),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
         ('RIGHTPADDING', (0, 0), (-1, -1), 8),
     ]))
@@ -244,23 +275,33 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     elements.append(Spacer(1, 10))
 
-    # 3. Automatic Diagnostics
-    elements.append(Paragraph("3. DIAGNOSTICS AUTOMATIQUES DU SYSTÈME", section_heading))
+    # 3. Real Benchmarks & Automatic Diagnostics
+    elements.append(Paragraph("3. DIAGNOSTICS AUTOMATIQUES & BENCHMARKS MATÉRIELS RÉELS", section_heading))
 
     cpu = auto_data.get("cpu", {})
     ram = auto_data.get("ram", {})
     battery = auto_data.get("battery", {})
     os_info = auto_data.get("os", {})
     disks = auto_data.get("disks", [])
-    disks_str = " | ".join([f"{d.get('mount')}: {d.get('total')} (Libre: {d.get('free')})" for d in disks]) if disks else "Non disponible"
+    disks_str = " | ".join([f"{d.get('mount')}: {d.get('total')} ({d.get('healthStatus')})" for d in disks]) if disks else "Non disponible"
+
+    bench_disk_str = "Non exécuté"
+    if test_results and "disk" in test_results:
+        d_res = test_results["disk"]
+        bench_disk_str = f"Écriture: {d_res.get('write_speed')} | Lecture: {d_res.get('read_speed')}"
+
+    bench_ram_str = "Non exécuté"
+    if test_results and "ram" in test_results:
+        r_res = test_results["ram"]
+        bench_ram_str = f"Écriture: {r_res.get('write_speed')} | Lecture: {r_res.get('read_speed')}"
 
     diag_rows = [
-        [Paragraph("<b>Composant / Système</b>", bold_text), Paragraph("<b>Caractéristiques Mesurées</b>", bold_text), Paragraph("<b>État</b>", bold_text)],
-        [Paragraph("Processeur (CPU)", normal_text), Paragraph(f"{cpu.get('model', 'N/A')} ({cpu.get('speed', 'N/A')}, {cpu.get('cores', 'N/A')})", normal_text), Paragraph("Normal", normal_text)],
-        [Paragraph("Mémoire (RAM)", normal_text), Paragraph(f"{ram.get('total', 'N/A')} Total (Occupé: {ram.get('usedPercent', 'N/A')})", normal_text), Paragraph("Normal", normal_text)],
-        [Paragraph("Disques Stockage", normal_text), Paragraph(disks_str, normal_text), Paragraph("Normal", normal_text)],
-        [Paragraph("Batterie", normal_text), Paragraph(f"{battery.get('percent', 'N/A')} - {battery.get('isCharging', 'N/A')}", normal_text), Paragraph(battery.get("health", "N/A"), normal_text)],
-        [Paragraph("Système d'exploitation", normal_text), Paragraph(f"{os_info.get('distro', 'N/A')} ({os_info.get('arch', 'N/A')})", normal_text), Paragraph("Actif", normal_text)],
+        [Paragraph("<b>Composant / Système</b>", bold_text), Paragraph("<b>Caractéristiques Mesurées & Benchmarks Réels</b>", bold_text), Paragraph("<b>État de Vie</b>", bold_text)],
+        [Paragraph("Processeur (CPU)", normal_text), Paragraph(f"{cpu.get('model', 'N/A')} ({cpu.get('freq', 'N/A')}, {cpu.get('cores', 'N/A')})", normal_text), Paragraph(synthesis['cpu_health'], normal_text)],
+        [Paragraph("Mémoire (RAM)", normal_text), Paragraph(f"{ram.get('total', 'N/A')} Total | Benchmark: {bench_ram_str}", normal_text), Paragraph(synthesis['ram_health'], normal_text)],
+        [Paragraph("Disques Stockage", normal_text), Paragraph(f"{disks_str} | Benchmark E/S: {bench_disk_str}", normal_text), Paragraph(synthesis['disk_health'], normal_text)],
+        [Paragraph("Batterie", normal_text), Paragraph(f"{battery.get('percent', 'N/A')} - {battery.get('isCharging', 'N/A')} (Autonomie: {battery.get('lifetime', 'N/A')})", normal_text), Paragraph(synthesis['battery_health'], normal_text)],
+        [Paragraph("Système d'exploitation", normal_text), Paragraph(f"{os_info.get('distro', 'N/A')} (Uptime: {os_info.get('uptime', 'N/A')})", normal_text), Paragraph("Actif", normal_text)],
         [Paragraph("Antivirus / Sécurité", normal_text), Paragraph(auto_data.get("antivirus", {}).get("status", "Non disponible"), normal_text), Paragraph("Protégé", normal_text)]
     ]
 
@@ -279,7 +320,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     elements.append(Spacer(1, 10))
 
     # 4. Questionnaire & Maintenance Actions
-    elements.append(Paragraph("4. RELEVÉ DE MAINTENANCE & CONTRÔLES", section_heading))
+    elements.append(Paragraph("4. RELEVÉ DE MAINTENANCE & CONTRÔLES TECHNICIEN", section_heading))
 
     chk = questionnaire.get("checklist", {})
     chk_rows = [
@@ -311,7 +352,6 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
             if comp.get("name"):
                 elements.append(Paragraph(f"• {comp['name']} ({comp.get('reason', 'N/A')})", normal_text))
 
-    # Observations
     if questionnaire.get("observations"):
         elements.append(Spacer(1, 6))
         elements.append(Paragraph(f"<b>Observations du technicien :</b> {questionnaire['observations']}", normal_text))
