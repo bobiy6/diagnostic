@@ -4,6 +4,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from reportlab.graphics.shapes import Drawing, Rect, String, Group
 
 def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None):
     score = 100
@@ -92,6 +93,18 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
         "nextMaintenanceDate": next_maint_date
     }
 
+def create_logo_drawing():
+    d = Drawing(36, 36)
+    # Background badge
+    d.add(Rect(0, 0, 36, 36, rx=6, ry=6, fillColor=colors.HexColor('#2563EB'), strokeColor=None))
+    # PC Screen representation
+    d.add(Rect(6, 12, 24, 16, rx=2, ry=2, fillColor=colors.white, strokeColor=None))
+    d.add(Rect(14, 6, 8, 4, fillColor=colors.HexColor('#CBD5E1'), strokeColor=None))
+    d.add(Rect(10, 4, 16, 2, fillColor=colors.HexColor('#94A3B8'), strokeColor=None))
+    # Inner check/pulse symbol string
+    d.add(String(13, 17, "PC", fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor('#2563EB')))
+    return d
+
 def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_results=None):
     synthesis = calculate_synthesis(client_data, questionnaire, auto_data, test_results)
     doc = SimpleDocTemplate(
@@ -105,7 +118,6 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     styles = getSampleStyleSheet()
 
-    # Custom styles
     title_style = ParagraphStyle(
         'DocTitle',
         parent=styles['Heading1'],
@@ -151,9 +163,26 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     elements = []
 
-    # Title & Header Banner
-    elements.append(Paragraph("PC DIAGNOSTIC & RAPPORT", title_style))
-    elements.append(Paragraph("Fiche Technique d'Intervention & Bilan de Diagnostic", subtitle_style))
+    # Title & Header Banner with Logo
+    header_table_data = [
+        [
+            create_logo_drawing(),
+            [
+                Paragraph("PC DIAGNOSTIC & RAPPORT", title_style),
+                Paragraph("Fiche Technique d'Intervention & Bilan de Diagnostic", subtitle_style)
+            ]
+        ]
+    ]
+
+    t_header = Table(header_table_data, colWidths=[45, 495])
+    t_header.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+
+    elements.append(t_header)
     elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2563EB'), spaceAfter=12))
 
     # 1. Client & PC Info Table
