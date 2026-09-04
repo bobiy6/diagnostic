@@ -4,7 +4,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from reportlab.graphics.shapes import Drawing, Rect, String
+from reportlab.graphics.shapes import Drawing, Rect, String, Circle, Group
 
 def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None):
     score = 100
@@ -41,7 +41,7 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
             score -= 25
             disk_health = "Dégradé / À remplacer"
             problems.append(f"Vitesse de transfert disque anormalement lente ({disk_res.get('write_speed', 'N/A')})")
-            actions.append("Remplacement recommandé par un SSD NVMe / SATA rapide")
+            actions.append("Remplacement recommandé par un SSD NVMe / SATA rapide par Mister Genius SA")
         elif disk_res.get("health") == "Usure modérée / Lent":
             score -= 10
             disk_health = "Usure modérée (HDD Mécanique)"
@@ -149,12 +149,17 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
     }
 
 def create_mg_logo_drawing():
-    d = Drawing(40, 40)
-    # Mister Genius Crimson Red Badge
-    d.add(Rect(0, 0, 40, 40, rx=8, ry=8, fillColor=colors.HexColor('#DC2626'), strokeColor=None))
-    # Inner Badge Wording / Emblem
-    d.add(String(7, 24, "MG", fontName="Helvetica-Bold", fontSize=16, fillColor=colors.white))
-    d.add(String(10, 8, "SA", fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor('#FECDD3')))
+    """
+    Renders an official Mister Genius SA vector logo badge emblem for the PDF.
+    """
+    d = Drawing(46, 46)
+    # Dark Navy Base Shadow Frame
+    d.add(Rect(0, 0, 46, 46, rx=10, ry=10, fillColor=colors.HexColor('#0F172A'), strokeColor=None))
+    # Crimson Red Mister Genius Shield Inner
+    d.add(Rect(3, 3, 40, 40, rx=8, ry=8, fillColor=colors.HexColor('#DC2626'), strokeColor=None))
+    # Genius 'G' Emblem String
+    d.add(String(8, 25, "MG", fontName="Helvetica-Bold", fontSize=18, fillColor=colors.white))
+    d.add(String(10, 8, "S.A.", fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor('#FECDD3')))
     return d
 
 def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_results=None):
@@ -224,7 +229,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     elements = []
 
-    # Title Banner with Mister Genius Logo
+    # Title Banner with Mister Genius SA Emblem Logo
     header_table_data = [
         [
             create_mg_logo_drawing(),
@@ -235,7 +240,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
         ]
     ]
 
-    t_header = Table(header_table_data, colWidths=[50, 490])
+    t_header = Table(header_table_data, colWidths=[55, 485])
     t_header.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
