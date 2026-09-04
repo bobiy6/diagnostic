@@ -16,8 +16,8 @@ def is_prime(n):
 
 def run_cpu_benchmark(duration_sec=3, callback=None):
     """
-    Sequential CPU stress test with 0% to 100% progress callback.
-    Runs threads concurrently while reporting progress.
+    Full 100% CPU multi-threaded stress test across ALL logical cores.
+    Runs continuous tight floating point + matrix math loops with no sleep.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -25,27 +25,25 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
 
     num_workers = max(1, psutil.cpu_count(logical=True) or 2)
 
-    def cpu_worker():
+    def cpu_heavy_worker(stop_time):
         ops = 0
         val = 1.0001
-        while time.time() < end_time:
-            for _ in range(500):
+        while time.time() < stop_time:
+            # 100% busy loop across all cores
+            for _ in range(2000):
                 val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
                 ops += 1
-            for p in range(100, 200):
-                if is_prime(p):
-                    ops += 1
         return ops
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        futures = [executor.submit(cpu_worker) for _ in range(num_workers)]
+        futures = [executor.submit(cpu_heavy_worker, end_time) for _ in range(num_workers)]
 
         while time.time() < end_time:
             elapsed = time.time() - start_time
             pct = min(0.99, elapsed / duration_sec)
             if callback:
-                callback(f"PROCESSEUR (CPU) : Test multi-cœurs en cours ({int(pct*100)}%)...", pct)
-            time.sleep(0.2)
+                callback(f"PROCESSEUR (CPU) : Charge 100% sur {num_workers} cœurs...", pct)
+            time.sleep(0.1)
 
         total_ops = 0
         for f in futures:
@@ -106,7 +104,7 @@ def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
 
             pat = patterns[pattern_idx % len(patterns)]
             if callback:
-                callback(f"MÉMOIRE (RAM) : Test de motif 0x{pat:02X} MemTest ({int(pct*100)}%)...", pct)
+                callback(f"MÉMOIRE (RAM) : MemTest 0x{pat:02X}...", pct)
 
             for i in range(0, size_bytes, 1024):
                 buf[i] = pat
@@ -116,7 +114,7 @@ def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
 
             total_bytes_tested += size_bytes
             pattern_idx += 1
-            time.sleep(0.1)
+            time.sleep(0.05)
 
         del buf
     except Exception:
@@ -152,11 +150,8 @@ def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
 
 def run_disk_benchmark(duration_sec=4, test_mb=64, callback=None):
     """
-    Sequential Disk Write/Read & 4K IOPS Test with 0% to 100% progress callback.
+    Sequential Disk Write/Read & 4K IOPS Test with clean progress callback.
     """
-    start_time = time.time()
-    errors_found = 0
-
     test_file = os.path.join(tempfile.gettempdir(), "pc_diag_disk_seq.tmp")
     data_block = os.urandom(1024 * 1024)
     chunk_4k = os.urandom(4096)
@@ -164,9 +159,10 @@ def run_disk_benchmark(duration_sec=4, test_mb=64, callback=None):
     write_speed = 0.0
     read_speed = 0.0
     iops = 0
+    errors_found = 0
 
     try:
-        if callback: callback("DISQUE STOCKAGE : Test d'écriture séquentielle (20%)...", 0.2)
+        if callback: callback("DISQUE STOCKAGE : Écriture séquentielle...", 0.25)
         t0 = time.time()
         with open(test_file, "wb") as f:
             for _ in range(test_mb):
@@ -176,7 +172,7 @@ def run_disk_benchmark(duration_sec=4, test_mb=64, callback=None):
         t1 = time.time()
         write_speed = round(test_mb / max(0.001, t1 - t0), 1)
 
-        if callback: callback("DISQUE STOCKAGE : Test de lecture séquentielle (50%)...", 0.5)
+        if callback: callback("DISQUE STOCKAGE : Lecture séquentielle...", 0.6)
         t2 = time.time()
         with open(test_file, "rb") as f:
             while f.read(1024 * 1024):
@@ -184,7 +180,7 @@ def run_disk_benchmark(duration_sec=4, test_mb=64, callback=None):
         t3 = time.time()
         read_speed = round(test_mb / max(0.001, t3 - t2), 1)
 
-        if callback: callback("DISQUE STOCKAGE : Benchmark d'accès aléatoire 4K IOPS (80%)...", 0.8)
+        if callback: callback("DISQUE STOCKAGE : Benchmark 4K IOPS...", 0.85)
         t4 = time.time()
         with open(test_file, "r+b") as f:
             file_size = test_mb * 1024 * 1024
@@ -242,7 +238,7 @@ def run_disk_benchmark(duration_sec=4, test_mb=64, callback=None):
 
 def run_gpu_benchmark(duration_sec=3, callback=None):
     """
-    Sequential GPU 3D Matrix Rendering Test with 0% to 100% progress callback.
+    Sequential GPU 3D Matrix Rendering Test.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -257,7 +253,7 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
         pct = min(0.99, elapsed / duration_sec)
 
         if callback:
-            callback(f"CARTE GRAPHIQUE (GPU) : Test de rendu 3D ({int(pct*100)}%)...", pct)
+            callback(f"CARTE GRAPHIQUE (GPU) : Test de rendu 3D...", pct)
 
         try:
             angle = frames * 0.05
@@ -271,7 +267,7 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
                 _ = (nx * 250) / (nz + 500)
 
             frames += 1
-            time.sleep(0.01)
+            time.sleep(0.005)
         except Exception:
             errors_found += 1
 
@@ -303,9 +299,9 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
 
 def run_battery_benchmark(callback=None):
     """
-    Sequential Battery Health & Retention Test with 0% to 100% progress.
+    Sequential Battery Health & Retention Test.
     """
-    if callback: callback("BATTERIE & ALIMENTATION : Analyse de la rétention et de la charge (50%)...", 0.5)
+    if callback: callback("BATTERIE & ALIMENTATION : Analyse de la rétention et de la charge...", 0.5)
 
     try:
         batt = psutil.sensors_battery()
@@ -346,7 +342,7 @@ def run_battery_benchmark(callback=None):
             "health": health
         }
     except Exception:
-        if callback: callback("BATTERIE & ALIMENTATION : Erreur de lecture (100%)", 1.0)
+        if callback: callback("BATTERIE & ALIMENTATION : Erreur de lecture", 1.0)
         return {
             "status": "ERREUR",
             "percent": "N/A",
@@ -359,7 +355,8 @@ def run_battery_benchmark(callback=None):
 def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     """
     Real 25-Minute (1500s) Sequential Endurance Stress Test divided into 5 Stages (5 min each).
-    Callbacks are throttled to max once every 0.5s to prevent flooding Tkinter's event loop.
+    100% CPU load multi-threaded worker loop running continuously in Stage 1.
+    Throttled callbacks to avoid GUI freezing.
     """
     stage_duration = duration_sec / 5.0
     start_time = time.time()
@@ -379,17 +376,25 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             if stage_callback:
                 stage_callback(stage_name, st_pct, glob_pct, errs)
 
-    # STAGE 1: CPU (0% -> 20% global)
-    t_stage1 = time.time() + stage_duration
-    while time.time() < t_stage1:
-        elapsed_st = time.time() - (t_stage1 - stage_duration)
-        pct_st = min(1.0, elapsed_st / stage_duration)
-        global_pct = 0.0 + (pct_st * 0.2)
-        rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR (CPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+    # STAGE 1: CPU 100% Full Multi-Core Stress (5 min)
+    t_stage1_end = time.time() + stage_duration
+    num_workers = max(1, psutil.cpu_count(logical=True) or 2)
+
+    def cpu_stage1_worker(end_t):
         val = 1.0001
-        for _ in range(1000):
-            val = math.sin(val) * math.cos(val) + 1.0001
-        time.sleep(0.01)
+        while time.time() < end_t:
+            for _ in range(5000):
+                val = math.sin(val) * math.cos(val) + 1.0001
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = [executor.submit(cpu_stage1_worker, t_stage1_end) for _ in range(num_workers)]
+        while time.time() < t_stage1_end:
+            now = time.time()
+            elapsed_st = now - (t_stage1_end - stage_duration)
+            pct_st = min(1.0, elapsed_st / stage_duration)
+            global_pct = 0.0 + (pct_st * 0.2)
+            rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR (CPU 100%) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            time.sleep(0.2)
 
     # STAGE 2: RAM (20% -> 40% global)
     t_stage2 = time.time() + stage_duration
@@ -409,7 +414,7 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             del buf
         except Exception:
             ram_errors += 1
-        time.sleep(0.01)
+        time.sleep(0.05)
 
     # STAGE 3: Disk I/O (40% -> 60% global)
     t_stage3 = time.time() + stage_duration
@@ -428,7 +433,7 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
         except Exception:
             disk_errors += 1
         cycle += 1
-        time.sleep(0.01)
+        time.sleep(0.05)
 
     # STAGE 4: GPU 3D (60% -> 80% global)
     t_stage4 = time.time() + stage_duration

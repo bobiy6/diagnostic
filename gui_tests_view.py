@@ -78,23 +78,28 @@ class TestsView(ctk.CTkFrame):
         self.textbox_log.grid(row=4, column=0, padx=20, pady=5, sticky="nsew")
 
         self.test_results = {}
+        self.last_log_message = ""
 
     def update_single_progress(self, message, pct):
         self.progress_bar.set(pct)
         self.lbl_stage.configure(text=f"[{int(pct*100)}%] {message}")
-        self.textbox_log.insert("end", f"[{int(pct*100)}%] {message}\n")
-        self.textbox_log.see("end")
+        if pct >= 1.0 or self.last_log_message != message:
+            self.last_log_message = message
+            self.textbox_log.insert("end", f"[{int(pct*100)}%] {message}\n")
+            self.textbox_log.see("end")
 
     def update_stage_progress(self, stage_name, stage_pct, global_pct, errors_count):
         self.progress_bar.set(global_pct)
-        self.lbl_stage.configure(text=f"[{int(global_pct*100)}%] {stage_name} ({int(stage_pct*100)}% étape)")
+        self.lbl_stage.configure(text=f"[{int(global_pct*100)}%] {stage_name} ({int(stage_pct*100)}%)")
         if errors_count > 0:
             self.lbl_errors_count.configure(text=f"Erreurs Détectées : {errors_count} (ANOMALIE)", text_color="#EF4444")
         else:
             self.lbl_errors_count.configure(text="Erreurs Détectées : 0 (STABLE)", text_color="#10B981")
 
-        self.textbox_log.insert("end", f"[{int(global_pct*100)}%] {stage_name} (Avancement étape: {int(stage_pct*100)}%)\n")
-        self.textbox_log.see("end")
+        if self.last_log_message != stage_name or global_pct >= 1.0:
+            self.last_log_message = stage_name
+            self.textbox_log.insert("end", f"[{int(global_pct*100)}%] {stage_name}\n")
+            self.textbox_log.see("end")
 
     def start_benchmark_thread(self, quick=True):
         self.btn_run_fast.configure(state="disabled")
@@ -102,6 +107,7 @@ class TestsView(ctk.CTkFrame):
         self.progress_bar.set(0)
         self.textbox_log.delete("1.0", "end")
         self.lbl_errors_count.configure(text="Erreurs Détectées : 0", text_color="#10B981")
+        self.last_log_message = ""
 
         mode_str = "RAPIDE SÉQUENTIEL" if quick else "TEST SÉQUENTIEL 25 MINUTES (5 X 5 MIN)"
         self.textbox_log.insert("end", f"=== DÉMARRAGE DES TESTS COMPOSANT PAR COMPOSANT ({mode_str}) ===\n\n")
