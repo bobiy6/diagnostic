@@ -18,27 +18,40 @@ class PCDiagnosticApp(ctk.CTk):
         super().__init__()
 
         self.title("Mister Genius SA - PC Diagnostic & Rapport Technique")
-        self.geometry("980 x 700")
-        self.minsize(850, 620)
+        self.geometry("1000 x 720")
+        self.minsize(880, 640)
 
-        # Top Header Bar (Mister Genius Dark Navy & Crimson Red Theme)
-        self.header_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="#0F172A")
+        # Top Header Bar (Mister Genius Blue #0072CE & Yellow Accent #FFC72C)
+        self.header_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="#1E293B")
         self.header_frame.pack(fill="x", side="top", padx=0, pady=0)
 
-        # Brand Title
+        # Brand Badge & Title
+        self.logo_badge = ctk.CTkButton(
+            self.header_frame,
+            text="MG",
+            width=40,
+            height=40,
+            fg_color="#0072CE",
+            hover_color="#0056B3",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color="#FFFFFF",
+            corner_radius=8
+        )
+        self.logo_badge.pack(side="left", padx=(20, 10), pady=12)
+
         self.app_title = ctk.CTkLabel(
             self.header_frame,
-            text="MISTER GENIUS SA",
+            text="MISTER GENIUS",
             font=ctk.CTkFont(size=20, weight="bold"),
-            text_color="#DC2626"
+            text_color="#0072CE"
         )
-        self.app_title.pack(side="left", padx=(20, 5), pady=12)
+        self.app_title.pack(side="left", padx=(0, 5), pady=12)
 
         self.app_subtitle = ctk.CTkLabel(
             self.header_frame,
-            text="• Diagnostic PC & Rapport Client",
-            font=ctk.CTkFont(size=14, weight="normal"),
-            text_color="#CBD5E1"
+            text="SA • Diagnostic & Rapport Technique Client",
+            font=ctk.CTkFont(size=13, weight="normal"),
+            text_color="#FFC72C"
         )
         self.app_subtitle.pack(side="left", padx=5, pady=12)
 
@@ -46,8 +59,8 @@ class PCDiagnosticApp(ctk.CTk):
         self.btn_pdf = ctk.CTkButton(
             self.header_frame,
             text="Générer Rapport PDF",
-            fg_color="#DC2626",
-            hover_color="#B91C1C",
+            fg_color="#0072CE",
+            hover_color="#0056B3",
             font=ctk.CTkFont(size=12, weight="bold"),
             command=self.export_pdf
         )
@@ -63,7 +76,7 @@ class PCDiagnosticApp(ctk.CTk):
         self.btn_new.pack(side="right", padx=5, pady=12)
 
         # Tab View
-        self.tabview = ctk.CTkTabview(self, segmented_button_selected_color="#DC2626", segmented_button_selected_hover_color="#B91C1C")
+        self.tabview = ctk.CTkTabview(self, segmented_button_selected_color="#0072CE", segmented_button_selected_hover_color="#0056B3")
         self.tabview.pack(fill="both", expand=True, padx=15, pady=15)
 
         self.tab_client = self.tabview.add("Fiche Client")
