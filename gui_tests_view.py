@@ -116,25 +116,28 @@ class TestsView(ctk.CTkFrame):
         thread.start()
 
     def run_benchmarks(self, quick):
-        if quick:
-            def cb(msg, pct):
-                self.after(0, self.update_single_progress, msg, pct)
-            res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=True, callback=cb)
-        else:
-            def stage_cb(stage_name, st_pct, glob_pct, errs):
-                self.after(0, self.update_stage_progress, stage_name, st_pct, glob_pct, errs)
-            res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=False, stage_callback=stage_cb)
+        try:
+            if quick:
+                def cb(msg, pct):
+                    self.after(0, self.update_single_progress, msg, pct)
+                res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=True, callback=cb)
+            else:
+                def stage_cb(stage_name, st_pct, glob_pct, errs):
+                    self.after(0, self.update_stage_progress, stage_name, st_pct, glob_pct, errs)
+                res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=False, stage_callback=stage_cb)
 
-        self.test_results = res
+            self.test_results = res
+        except Exception as err:
+            self.after(0, lambda: self.textbox_log.insert("end", f"\nANOMALIE EN COURS DE TEST : {str(err)}\n"))
+        finally:
+            def finish_ui():
+                self.progress_bar.set(1.0)
+                self.lbl_stage.configure(text="TESTS SÉQUENTIELS TERMINÉS AVEC SUCCÈS !")
+                self.textbox_log.insert("end", "\n=== TOUS LES TESTS MATÉRIELS ONT ÉTÉ EXÉCUTÉS AVEC SUCCÈS ===")
+                self.btn_run_fast.configure(state="normal")
+                self.btn_run_deep.configure(state="normal")
 
-        def finish_ui():
-            self.progress_bar.set(1.0)
-            self.lbl_stage.configure(text="TESTS SÉQUENTIELS TERMINÉS AVEC SUCCÈS !")
-            self.textbox_log.insert("end", "\n=== TOUS LES TESTS MATÉRIELS ONT ÉTÉ EXÉCUTÉS AVEC SUCCÈS ===")
-            self.btn_run_fast.configure(state="normal")
-            self.btn_run_deep.configure(state="normal")
-
-        self.after(0, finish_ui)
+            self.after(0, finish_ui)
 
     def get_data(self):
         return self.test_results

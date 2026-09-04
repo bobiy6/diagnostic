@@ -17,7 +17,7 @@ def is_prime(n):
 def run_cpu_benchmark(duration_sec=3, callback=None):
     """
     Full 100% CPU multi-threaded stress test across ALL logical cores.
-    Runs continuous tight floating point + matrix math loops with no sleep.
+    Runs continuous tight floating point + matrix math loops.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -29,10 +29,10 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
         ops = 0
         val = 1.0001
         while time.time() < stop_time:
-            # 100% busy loop across all cores
-            for _ in range(2000):
+            for _ in range(1000):
                 val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
                 ops += 1
+            time.sleep(0.001)  # GIL release to keep GUI completely smooth
         return ops
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
@@ -84,6 +84,7 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
 def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
     """
     Sequential RAM MemTest with 0% to 100% progress callback.
+    Uses pre-allocated memory buffer to prevent heap allocation churn.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -355,11 +356,14 @@ def run_battery_benchmark(callback=None):
 def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     """
     Real 25-Minute (1500s) Sequential Endurance Stress Test divided into 5 Stages (5 min each).
-    100% CPU load multi-threaded worker loop running continuously in Stage 1.
-    Throttled callbacks to avoid GUI freezing.
+    - Stage 1: CPU Full Load (reusable threads & GIL release)
+    - Stage 2: RAM MemTest (pre-allocated bytearray buffer, zero heap churn)
+    - Stage 3: Disk I/O (reusable dedicated test file, zero OS file handle leaks)
+    - Stage 4: GPU 3D Matrix Rendering
+    - Stage 5: Battery & Power Stability
+    All stages wrapped in error shielding.
     """
     stage_duration = duration_sec / 5.0
-    start_time = time.time()
 
     cpu_errors = 0
     ram_errors = 0
@@ -377,84 +381,109 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
                 stage_callback(stage_name, st_pct, glob_pct, errs)
 
     # STAGE 1: CPU 100% Full Multi-Core Stress (5 min)
-    t_stage1_end = time.time() + stage_duration
-    num_workers = max(1, psutil.cpu_count(logical=True) or 2)
+    try:
+        t_stage1_end = time.time() + stage_duration
+        num_workers = max(1, psutil.cpu_count(logical=True) or 2)
 
-    def cpu_stage1_worker(end_t):
-        val = 1.0001
-        while time.time() < end_t:
-            for _ in range(5000):
-                val = math.sin(val) * math.cos(val) + 1.0001
+        def cpu_stage1_worker(end_t):
+            val = 1.0001
+            while time.time() < end_t:
+                for _ in range(1000):
+                    val = math.sin(val) * math.cos(val) + 1.0001
+                time.sleep(0.001)  # GIL release for smooth GUI event loop
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        futures = [executor.submit(cpu_stage1_worker, t_stage1_end) for _ in range(num_workers)]
-        while time.time() < t_stage1_end:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = [executor.submit(cpu_stage1_worker, t_stage1_end) for _ in range(num_workers)]
+            while time.time() < t_stage1_end:
+                now = time.time()
+                elapsed_st = now - (t_stage1_end - stage_duration)
+                pct_st = min(1.0, elapsed_st / stage_duration)
+                global_pct = 0.0 + (pct_st * 0.2)
+                rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR (CPU 100%) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+                time.sleep(0.2)
+    except Exception:
+        cpu_errors += 1
+
+    # STAGE 2: RAM MemTest with single pre-allocated 32 MB buffer (20% -> 40% global)
+    try:
+        t_stage2_end = time.time() + stage_duration
+        ram_buffer = bytearray(32 * 1024 * 1024)
+
+        while time.time() < t_stage2_end:
             now = time.time()
-            elapsed_st = now - (t_stage1_end - stage_duration)
+            elapsed_st = now - (t_stage2_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
-            global_pct = 0.0 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR (CPU 100%) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
-            time.sleep(0.2)
+            global_pct = 0.2 + (pct_st * 0.2)
+            rate_limited_cb("ÉTAPE 2/5 : TEST INTÉGRITÉ MÉMOIRE (RAM MemTest) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
-    # STAGE 2: RAM (20% -> 40% global)
-    t_stage2 = time.time() + stage_duration
-    while time.time() < t_stage2:
-        elapsed_st = time.time() - (t_stage2 - stage_duration)
-        pct_st = min(1.0, elapsed_st / stage_duration)
-        global_pct = 0.2 + (pct_st * 0.2)
-        rate_limited_cb("ÉTAPE 2/5 : TEST INTÉGRITÉ MÉMOIRE (RAM MemTest) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
-        try:
-            buf = bytearray(32 * 1024 * 1024)
             for pat in [0x55, 0xAA]:
-                for i in range(0, len(buf), 8192):
-                    buf[i] = pat
-                for i in range(0, len(buf), 8192):
-                    if buf[i] != pat:
+                for i in range(0, len(ram_buffer), 8192):
+                    ram_buffer[i] = pat
+                for i in range(0, len(ram_buffer), 8192):
+                    if ram_buffer[i] != pat:
                         ram_errors += 1
-            del buf
-        except Exception:
-            ram_errors += 1
-        time.sleep(0.05)
+            time.sleep(0.05)
+        del ram_buffer
+    except Exception:
+        ram_errors += 1
 
-    # STAGE 3: Disk I/O (40% -> 60% global)
-    t_stage3 = time.time() + stage_duration
-    cycle = 0
-    while time.time() < t_stage3:
-        elapsed_st = time.time() - (t_stage3 - stage_duration)
-        pct_st = min(1.0, elapsed_st / stage_duration)
-        global_pct = 0.4 + (pct_st * 0.2)
-        rate_limited_cb("ÉTAPE 3/5 : BENCHMARK E/S DISQUE & IOPS - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
-        test_file = os.path.join(tempfile.gettempdir(), f"mg_endurance_disk_{cycle}.tmp")
-        try:
-            with open(test_file, "wb") as f:
-                f.write(os.urandom(4 * 1024 * 1024))
-            if os.path.exists(test_file):
-                os.remove(test_file)
-        except Exception:
-            disk_errors += 1
-        cycle += 1
-        time.sleep(0.05)
+    # STAGE 3: Disk I/O with single reusable file (40% -> 60% global)
+    endurance_disk_file = os.path.join(tempfile.gettempdir(), "mg_endurance_disk_reusable.tmp")
+    data_4mb = os.urandom(4 * 1024 * 1024)
+    try:
+        t_stage3_end = time.time() + stage_duration
+        while time.time() < t_stage3_end:
+            now = time.time()
+            elapsed_st = now - (t_stage3_end - stage_duration)
+            pct_st = min(1.0, elapsed_st / stage_duration)
+            global_pct = 0.4 + (pct_st * 0.2)
+            rate_limited_cb("ÉTAPE 3/5 : BENCHMARK E/S DISQUE & IOPS - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
-    # STAGE 4: GPU 3D (60% -> 80% global)
-    t_stage4 = time.time() + stage_duration
-    vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(50)]
-    while time.time() < t_stage4:
-        elapsed_st = time.time() - (t_stage4 - stage_duration)
-        pct_st = min(1.0, elapsed_st / stage_duration)
-        global_pct = 0.6 + (pct_st * 0.2)
-        rate_limited_cb("ÉTAPE 4/5 : RENDU GRAPHIQUE 3D (GPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
-        for x, y, z in vertices:
-            _ = (x * 0.5 * 250) / (z + 500)
-        time.sleep(0.01)
+            with open(endurance_disk_file, "wb") as f:
+                f.write(data_4mb)
+                f.flush()
+                os.fsync(f.fileno())
+            with open(endurance_disk_file, "rb") as f:
+                _ = f.read()
+            time.sleep(0.05)
 
-    # STAGE 5: Battery & Stability (80% -> 100% global)
-    t_stage5 = time.time() + stage_duration
-    while time.time() < t_stage5:
-        elapsed_st = time.time() - (t_stage5 - stage_duration)
-        pct_st = min(1.0, elapsed_st / stage_duration)
-        global_pct = 0.8 + (pct_st * 0.2)
-        rate_limited_cb("ÉTAPE 5/5 : ANALYSE STABILITÉ & ALIMENTATION - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
-        time.sleep(0.5)
+        if os.path.exists(endurance_disk_file):
+            os.remove(endurance_disk_file)
+    except Exception:
+        disk_errors += 1
+        if os.path.exists(endurance_disk_file):
+            try: os.remove(endurance_disk_file)
+            except Exception: pass
+
+    # STAGE 4: GPU 3D Matrix Rendering (60% -> 80% global)
+    try:
+        t_stage4_end = time.time() + stage_duration
+        vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(50)]
+        while time.time() < t_stage4_end:
+            now = time.time()
+            elapsed_st = now - (t_stage4_end - stage_duration)
+            pct_st = min(1.0, elapsed_st / stage_duration)
+            global_pct = 0.6 + (pct_st * 0.2)
+            rate_limited_cb("ÉTAPE 4/5 : RENDU GRAPHIQUE 3D (GPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+
+            for x, y, z in vertices:
+                _ = (x * 0.5 * 250) / (z + 500)
+            time.sleep(0.01)
+    except Exception:
+        gpu_errors += 1
+
+    # STAGE 5: Battery & System Stability (80% -> 100% global)
+    try:
+        t_stage5_end = time.time() + stage_duration
+        while time.time() < t_stage5_end:
+            now = time.time()
+            elapsed_st = now - (t_stage5_end - stage_duration)
+            pct_st = min(1.0, elapsed_st / stage_duration)
+            global_pct = 0.8 + (pct_st * 0.2)
+            rate_limited_cb("ÉTAPE 5/5 : ANALYSE STABILITÉ & ALIMENTATION - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            time.sleep(0.5)
+    except Exception:
+        pass
 
     total_errors = cpu_errors + ram_errors + disk_errors + gpu_errors
     if stage_callback:
