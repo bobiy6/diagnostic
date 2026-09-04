@@ -365,7 +365,7 @@ def run_25min_endurance_benchmark(duration_sec=1500, callback=None):
 
         if callback:
             callback(
-                f"Soustraitement 25 MIN [Cycle #{cycle_count+1}] Temps restant : {rem_min:02d}m {rem_sec:02d}s (Erreurs RAM: {ram_errors})",
+                f"Test Endurance 25 Min [Cycle #{cycle_count+1}] | CPU: {cpu_ops:,} op | GPU: {gpu_frames:,} frames | Erreurs RAM: {ram_errors} | Temps restant: {rem_min:02d}m {rem_sec:02d}s",
                 progress
             )
 
@@ -377,7 +377,7 @@ def run_25min_endurance_benchmark(duration_sec=1500, callback=None):
                 val = math.sin(val) * math.cos(val) + 1.0001
                 cpu_ops += 1
 
-        # 2. RAM MemTest Chunk (Allocates 128 MB and tests pattern integrity)
+        # 2. RAM MemTest Chunk (Allocates 64 MB and tests pattern integrity)
         try:
             buf = bytearray(64 * 1024 * 1024)
             for pat in [0x55, 0xAA]:
@@ -447,7 +447,6 @@ def run_all_hardware_benchmarks(quick=True, callback=None):
         batt_res = run_battery_benchmark(callback=callback)
         endurance_res = {"status": "Non exécuté (Mode Rapide)"}
     else:
-        # Full 25-minute endurance run
         endurance_res = run_25min_endurance_benchmark(duration_sec=1500, callback=callback)
         cpu_res = run_cpu_benchmark(duration_sec=3, callback=None)
         ram_res = run_ram_benchmark(block_mb=128, callback=None)
