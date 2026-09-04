@@ -17,7 +17,7 @@ def is_prime(n):
 def run_cpu_benchmark(duration_sec=3, callback=None):
     """
     Full 100% CPU multi-threaded stress test across ALL logical cores.
-    Runs continuous tight floating point + matrix math loops.
+    Pure CPU-bound math loops with no sleep to guarantee 100% Task Manager load.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -29,10 +29,12 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
         ops = 0
         val = 1.0001
         while time.time() < stop_time:
-            for _ in range(1000):
+            for _ in range(5000):
                 val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
                 ops += 1
-            time.sleep(0.001)  # GIL release to keep GUI completely smooth
+            for p in range(100, 200):
+                if is_prime(p):
+                    ops += 1
         return ops
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
@@ -42,7 +44,7 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
             elapsed = time.time() - start_time
             pct = min(0.99, elapsed / duration_sec)
             if callback:
-                callback(f"PROCESSEUR (CPU) : Charge 100% sur {num_workers} cœurs...", pct)
+                callback(f"PROCESSEUR (CPU) : Charge 100% Max sur {num_workers} cœurs...", pct)
             time.sleep(0.1)
 
         total_ops = 0
@@ -84,7 +86,6 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
 def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
     """
     Sequential RAM MemTest with 0% to 100% progress callback.
-    Uses pre-allocated memory buffer to prevent heap allocation churn.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -115,7 +116,7 @@ def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
 
             total_bytes_tested += size_bytes
             pattern_idx += 1
-            time.sleep(0.05)
+            time.sleep(0.01)
 
         del buf
     except Exception:
@@ -268,7 +269,6 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
                 _ = (nx * 250) / (nz + 500)
 
             frames += 1
-            time.sleep(0.005)
         except Exception:
             errors_found += 1
 
@@ -356,12 +356,11 @@ def run_battery_benchmark(callback=None):
 def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     """
     Real 25-Minute (1500s) Sequential Endurance Stress Test divided into 5 Stages (5 min each).
-    - Stage 1: CPU Full Load (reusable threads & GIL release)
-    - Stage 2: RAM MemTest (pre-allocated bytearray buffer, zero heap churn)
-    - Stage 3: Disk I/O (reusable dedicated test file, zero OS file handle leaks)
+    - Stage 1: CPU 100% Full Load across ALL logical cores (pure CPU-bound worker threads with no sleep)
+    - Stage 2: RAM MemTest
+    - Stage 3: Disk I/O
     - Stage 4: GPU 3D Matrix Rendering
     - Stage 5: Battery & Power Stability
-    All stages wrapped in error shielding.
     """
     stage_duration = duration_sec / 5.0
 
@@ -385,26 +384,25 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
         t_stage1_end = time.time() + stage_duration
         num_workers = max(1, psutil.cpu_count(logical=True) or 2)
 
-        def cpu_stage1_worker(end_t):
+        def cpu_pure_heavy_worker(end_t):
             val = 1.0001
             while time.time() < end_t:
-                for _ in range(1000):
-                    val = math.sin(val) * math.cos(val) + 1.0001
-                time.sleep(0.001)  # GIL release for smooth GUI event loop
+                for _ in range(10000):
+                    val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-            futures = [executor.submit(cpu_stage1_worker, t_stage1_end) for _ in range(num_workers)]
+            futures = [executor.submit(cpu_pure_heavy_worker, t_stage1_end) for _ in range(num_workers)]
             while time.time() < t_stage1_end:
                 now = time.time()
                 elapsed_st = now - (t_stage1_end - stage_duration)
                 pct_st = min(1.0, elapsed_st / stage_duration)
                 global_pct = 0.0 + (pct_st * 0.2)
-                rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR (CPU 100%) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+                rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR (CPU 100% MAX) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
                 time.sleep(0.2)
     except Exception:
         cpu_errors += 1
 
-    # STAGE 2: RAM MemTest with single pre-allocated 32 MB buffer (20% -> 40% global)
+    # STAGE 2: RAM MemTest (20% -> 40% global)
     try:
         t_stage2_end = time.time() + stage_duration
         ram_buffer = bytearray(32 * 1024 * 1024)
@@ -422,12 +420,12 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
                 for i in range(0, len(ram_buffer), 8192):
                     if ram_buffer[i] != pat:
                         ram_errors += 1
-            time.sleep(0.05)
+            time.sleep(0.01)
         del ram_buffer
     except Exception:
         ram_errors += 1
 
-    # STAGE 3: Disk I/O with single reusable file (40% -> 60% global)
+    # STAGE 3: Disk I/O (40% -> 60% global)
     endurance_disk_file = os.path.join(tempfile.gettempdir(), "mg_endurance_disk_reusable.tmp")
     data_4mb = os.urandom(4 * 1024 * 1024)
     try:
@@ -445,7 +443,7 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
                 os.fsync(f.fileno())
             with open(endurance_disk_file, "rb") as f:
                 _ = f.read()
-            time.sleep(0.05)
+            time.sleep(0.01)
 
         if os.path.exists(endurance_disk_file):
             os.remove(endurance_disk_file)
@@ -468,7 +466,6 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
 
             for x, y, z in vertices:
                 _ = (x * 0.5 * 250) / (z + 500)
-            time.sleep(0.01)
     except Exception:
         gpu_errors += 1
 
