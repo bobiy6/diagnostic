@@ -20,7 +20,7 @@ class PCDiagnosticApp(ctk.CTk):
         super().__init__()
 
         self.title("Mister Genius SA - PC Diagnostic & Rapport Technique")
-        self.geometry("1020 x 740")
+        self.geometry("1020x740")
         self.minsize(900, 660)
 
         # Top Header Bar (Mister Genius Clean Dark Navy & Cyan Accent Theme)

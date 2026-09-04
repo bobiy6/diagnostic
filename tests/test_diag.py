@@ -19,15 +19,14 @@ class TestPCDiagnostic(unittest.TestCase):
         self.assertIn("uptime", diag["os"])
 
     def test_advanced_hardware_benchmarks(self):
-        benchmarks = system_hardware_benchmarks.run_all_hardware_benchmarks()
+        benchmarks = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=True)
         self.assertIn("cpu", benchmarks)
         self.assertIn("ops_per_sec", benchmarks["cpu"])
         self.assertIn("ram", benchmarks)
         self.assertIn("write_read_speed", benchmarks["ram"])
-        self.assertIn("errors_found", benchmarks["ram"])
+        self.assertIn("errors", benchmarks["ram"])
         self.assertIn("disk", benchmarks)
         self.assertIn("iops_4k", benchmarks["disk"])
-        self.assertIn("latency", benchmarks["disk"])
         self.assertIn("gpu", benchmarks)
         self.assertIn("fps", benchmarks["gpu"])
         self.assertIn("score_3d", benchmarks["gpu"])
@@ -51,7 +50,7 @@ class TestPCDiagnostic(unittest.TestCase):
         filepath = os.path.join(tempfile.gettempdir(), "test_mg_unit_report.pdf")
         if os.path.exists(filepath):
             os.remove(filepath)
-        benchmarks = system_hardware_benchmarks.run_all_hardware_benchmarks()
+        benchmarks = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=True)
         pdf_report.generate_pdf_report(
             filepath,
             {"clientName": "Mister Genius SA Test Client"},

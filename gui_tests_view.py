@@ -18,7 +18,7 @@ class TestsView(ctk.CTkFrame):
 
         subtitle = ctk.CTkLabel(
             self,
-            text="Évaluation réelle CPU, MemTest RAM, IOPS Disque, GPU 3D et Test de Piétinement Professionnel (25 Min)",
+            text="Tests séquentiels composant par composant (CPU -> RAM -> Disque -> GPU -> Batterie)",
             font=ctk.CTkFont(size=12),
             text_color="#64748B"
         )
@@ -30,7 +30,7 @@ class TestsView(ctk.CTkFrame):
 
         self.btn_run_fast = ctk.CTkButton(
             btn_frame,
-            text="Test Rapide Standard (30s)",
+            text="Test Séquentiel Rapide (30s)",
             fg_color="#334155",
             hover_color="#475569",
             command=lambda: self.start_benchmark_thread(quick=True)
@@ -39,7 +39,7 @@ class TestsView(ctk.CTkFrame):
 
         self.btn_run_deep = ctk.CTkButton(
             btn_frame,
-            text="TEST DE PIÉTINEMENT & ENDURANCE 25 MIN (Mister Genius SA)",
+            text="TEST SÉQUENTIEL DE PIÉTINEMENT 25 MIN (5 x 5 min)",
             fg_color="#0099DA",
             hover_color="#0072CE",
             font=ctk.CTkFont(size=12, weight="bold"),
@@ -47,24 +47,53 @@ class TestsView(ctk.CTkFrame):
         )
         self.btn_run_deep.pack(side="left")
 
-        # Progress bar & Status
-        self.progress_bar = ctk.CTkProgressBar(self, progress_color="#0099DA")
+        # Component Progress & Error Display
+        prog_frame = ctk.CTkFrame(self, fg_color="#0F172A", corner_radius=10)
+        prog_frame.grid(row=3, column=0, padx=20, pady=10, sticky="ew")
+        prog_frame.grid_columnconfigure(0, weight=1)
+
+        self.lbl_stage = ctk.CTkLabel(
+            prog_frame,
+            text="SÉLECTIONNEZ UN TEST POUR DÉMARRER",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color="#0099DA"
+        )
+        self.lbl_stage.grid(row=0, column=0, padx=15, pady=(10, 2), sticky="w")
+
+        self.progress_bar = ctk.CTkProgressBar(prog_frame, progress_color="#0099DA", height=14)
         self.progress_bar.set(0)
-        self.progress_bar.grid(row=3, column=0, padx=20, pady=(10, 5), sticky="ew")
+        self.progress_bar.grid(row=1, column=0, padx=15, pady=5, sticky="ew")
 
-        self.lbl_status = ctk.CTkLabel(self, text="Prêt pour le benchmark matériel.", font=ctk.CTkFont(size=12, weight="bold"))
-        self.lbl_status.grid(row=4, column=0, padx=20, pady=(0, 5), sticky="w")
+        self.lbl_errors_count = ctk.CTkLabel(
+            prog_frame,
+            text="Erreurs Détectées : 0",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#10B981"
+        )
+        self.lbl_errors_count.grid(row=2, column=0, padx=15, pady=(2, 10), sticky="w")
 
-        self.textbox_log = ctk.CTkTextbox(self, height=320, font=ctk.CTkFont(family="Courier", size=11))
-        self.textbox_log.insert("1.0", "Cliquez sur 'Test Rapide' ou 'TEST DE PIÉTINEMENT 25 MIN' pour exécuter le test d'endurance.\n")
-        self.textbox_log.grid(row=5, column=0, padx=20, pady=5, sticky="nsew")
+        # Terminal Log Output
+        self.textbox_log = ctk.CTkTextbox(self, height=290, font=ctk.CTkFont(family="Courier", size=11))
+        self.textbox_log.insert("1.0", "Exécution séquentielle : chaque composant est testé individuellement de 0% à 100%.\n")
+        self.textbox_log.grid(row=4, column=0, padx=20, pady=5, sticky="nsew")
 
         self.test_results = {}
 
-    def update_progress(self, message, progress_val):
-        self.progress_bar.set(progress_val)
-        self.lbl_status.configure(text=f"[{int(progress_val*100)}%] {message}")
-        self.textbox_log.insert("end", f"[{int(progress_val*100)}%] {message}\n")
+    def update_single_progress(self, message, pct):
+        self.progress_bar.set(pct)
+        self.lbl_stage.configure(text=f"[{int(pct*100)}%] {message}")
+        self.textbox_log.insert("end", f"[{int(pct*100)}%] {message}\n")
+        self.textbox_log.see("end")
+
+    def update_stage_progress(self, stage_name, stage_pct, global_pct, errors_count):
+        self.progress_bar.set(global_pct)
+        self.lbl_stage.configure(text=f"[{int(global_pct*100)}%] {stage_name} ({int(stage_pct*100)}% étape)")
+        if errors_count > 0:
+            self.lbl_errors_count.configure(text=f"Erreurs Détectées : {errors_count} (ANOMALIE)", text_color="#EF4444")
+        else:
+            self.lbl_errors_count.configure(text="Erreurs Détectées : 0 (STABLE)", text_color="#10B981")
+
+        self.textbox_log.insert("end", f"[{int(global_pct*100)}%] {stage_name} (Avancement étape: {int(stage_pct*100)}%)\n")
         self.textbox_log.see("end")
 
     def start_benchmark_thread(self, quick=True):
@@ -72,22 +101,29 @@ class TestsView(ctk.CTkFrame):
         self.btn_run_deep.configure(state="disabled")
         self.progress_bar.set(0)
         self.textbox_log.delete("1.0", "end")
-        mode_str = "RAPIDE 30 SECONDES" if quick else "TEST DE PIÉTINEMENT 25 MINUTES (MISTER GENIUS SA)"
-        self.textbox_log.insert("end", f"=== DÉMARRAGE DU BENCHMARK MATÉRIEL ({mode_str}) ===\n\n")
+        self.lbl_errors_count.configure(text="Erreurs Détectées : 0", text_color="#10B981")
+
+        mode_str = "RAPIDE SÉQUENTIEL" if quick else "TEST SÉQUENTIEL 25 MINUTES (5 X 5 MIN)"
+        self.textbox_log.insert("end", f"=== DÉMARRAGE DES TESTS COMPOSANT PAR COMPOSANT ({mode_str}) ===\n\n")
 
         thread = threading.Thread(target=self.run_benchmarks, args=(quick,), daemon=True)
         thread.start()
 
     def run_benchmarks(self, quick):
-        def cb(msg, progress):
-            self.after(0, self.update_progress, msg, progress)
+        if quick:
+            def cb(msg, pct):
+                self.after(0, self.update_single_progress, msg, pct)
+            res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=True, callback=cb)
+        else:
+            def stage_cb(stage_name, st_pct, glob_pct, errs):
+                self.after(0, self.update_stage_progress, stage_name, st_pct, glob_pct, errs)
+            res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=False, stage_callback=stage_cb)
 
-        res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=quick, callback=cb)
         self.test_results = res
 
         def finish_ui():
             self.progress_bar.set(1.0)
-            self.lbl_status.configure(text="Benchmark matériel Mister Genius SA terminé !")
+            self.lbl_stage.configure(text="TESTS SÉQUENTIELS TERMINÉS AVEC SUCCÈS !")
             self.textbox_log.insert("end", "\n=== TOUS LES TESTS MATÉRIELS ONT ÉTÉ EXÉCUTÉS AVEC SUCCÈS ===")
             self.btn_run_fast.configure(state="normal")
             self.btn_run_deep.configure(state="normal")
