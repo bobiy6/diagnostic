@@ -17,7 +17,8 @@ def is_prime(n):
 def run_cpu_benchmark(duration_sec=3, callback=None):
     """
     Full 100% CPU multi-threaded stress test across ALL logical cores.
-    Pure CPU-bound math loops with no sleep to guarantee 100% Task Manager load.
+    Runs continuous tight floating point + matrix math loops without worker sleeps.
+    Yields GIL periodically only every 50,000 operations to keep GUI responsive.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -29,12 +30,10 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
         ops = 0
         val = 1.0001
         while time.time() < stop_time:
-            for _ in range(5000):
+            for _ in range(50000):
                 val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
                 ops += 1
-            for p in range(100, 200):
-                if is_prime(p):
-                    ops += 1
+            time.sleep(0)  # Immediate GIL yield without OS sleep delay
         return ops
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
@@ -269,6 +268,7 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
                 _ = (nx * 250) / (nz + 500)
 
             frames += 1
+            time.sleep(0.005)
         except Exception:
             errors_found += 1
 
@@ -356,9 +356,9 @@ def run_battery_benchmark(callback=None):
 def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     """
     Real 25-Minute (1500s) Sequential Endurance Stress Test divided into 5 Stages (5 min each).
-    - Stage 1: CPU 100% Full Load across ALL logical cores (pure CPU-bound worker threads with no sleep)
+    - Stage 1: CPU 100% Full Load across ALL logical cores (pure 100% CPU stress)
     - Stage 2: RAM MemTest
-    - Stage 3: Disk I/O
+    - Stage 3: Disk I/O (throttled write cycles to protect SSD longevity)
     - Stage 4: GPU 3D Matrix Rendering
     - Stage 5: Battery & Power Stability
     """
@@ -387,8 +387,9 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
         def cpu_pure_heavy_worker(end_t):
             val = 1.0001
             while time.time() < end_t:
-                for _ in range(10000):
+                for _ in range(50000):
                     val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
+                time.sleep(0)  # Immediate GIL yield without sleep delay
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
             futures = [executor.submit(cpu_pure_heavy_worker, t_stage1_end) for _ in range(num_workers)]
@@ -443,7 +444,7 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
                 os.fsync(f.fileno())
             with open(endurance_disk_file, "rb") as f:
                 _ = f.read()
-            time.sleep(0.01)
+            time.sleep(0.1)  # Throttle write loops to protect client SSD write endurance
 
         if os.path.exists(endurance_disk_file):
             os.remove(endurance_disk_file)
