@@ -33,7 +33,7 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
             score -= 30
             ram_health = "DÉFAILLANT (Erreurs MemTest)"
             problems.append(f"ANOMALIE MATÉRIELLE: {ram_res.get('errors_found')} erreur(s) mémoire RAM détectée(s)")
-            actions.append("Remplacement de la barrette de RAM défectueuse")
+            actions.append("Remplacement de la barrette de RAM défectueuse par Mister Genius SA")
 
         # Disk
         disk_res = test_results.get("disk", {})
@@ -45,7 +45,7 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
         elif disk_res.get("health") == "Usure modérée / Lent":
             score -= 10
             disk_health = "Usure modérée (HDD Mécanique)"
-            recommendations.append("Envisager le passage à un SSD pour multiplier par 5 la vitesse")
+            recommendations.append("Envisager le passage à un SSD par Mister Genius SA pour multiplier par 5 la vitesse")
 
         # GPU
         gpu_res = test_results.get("gpu", {})
@@ -60,18 +60,18 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
             score -= 15
             battery_health = "Fortement dégradée (À remplacer)"
             problems.append(f"Batterie usée ({batt_res.get('estimated_wear', 'N/A')})")
-            actions.append("Remplacement de la batterie recommandé")
+            actions.append("Remplacement de la batterie recommandé chez Mister Genius SA")
 
     # Checklist evaluation
     checklist = questionnaire.get("checklist", {})
     if checklist.get("dustCleaned") == "non":
         score -= 10
         problems.append("Poussière accumulée dans les ventilateurs / dissipateurs")
-        actions.append("Nettoyage et dépoussiérage physique conseillés")
+        actions.append("Nettoyage et dépoussiérage physique par Mister Genius SA conseillés")
 
     if checklist.get("thermalPasteReplaced") == "non":
         score -= 5
-        recommendations.append("Remplacement préventif de la pâte thermique")
+        recommendations.append("Remplacement préventif de la pâte thermique par Mister Genius SA")
 
     if checklist.get("diskScanOk") == "non":
         score -= 20
@@ -82,7 +82,7 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
     if checklist.get("malwareCheck") == "non":
         score -= 15
         problems.append("Contrôle Antivirus / Anti-Malware non réalisé")
-        actions.append("Analyse complète de sécurité recommandée")
+        actions.append("Analyse complète de sécurité Mister Genius SA recommandée")
 
     if checklist.get("updatesDone") == "non":
         score -= 10
@@ -113,9 +113,9 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
     is_pro = client_data.get("clientType") == "Professionnel"
     maint_interval = "6 mois (Professionnel)" if is_pro else "1 an (Particulier)"
     recommendations.append(
-        "Planifier une maintenance préventive semi-annuelle (tous les 6 mois) pour environnement professionnel."
+        "Planifier une maintenance préventive semi-annuelle (tous les 6 mois) chez Mister Genius SA pour environnement professionnel."
         if is_pro else
-        "Planifier une maintenance préventive annuelle (tous les 12 mois) pour particulier."
+        "Planifier une maintenance préventive annuelle (tous les 12 mois) chez Mister Genius SA pour particulier."
     )
 
     base_date_str = client_data.get("date")
@@ -148,13 +148,13 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
         "nextMaintenanceDate": next_maint_date
     }
 
-def create_logo_drawing():
-    d = Drawing(36, 36)
-    d.add(Rect(0, 0, 36, 36, rx=6, ry=6, fillColor=colors.HexColor('#2563EB'), strokeColor=None))
-    d.add(Rect(6, 12, 24, 16, rx=2, ry=2, fillColor=colors.white, strokeColor=None))
-    d.add(Rect(14, 6, 8, 4, fillColor=colors.HexColor('#CBD5E1'), strokeColor=None))
-    d.add(Rect(10, 4, 16, 2, fillColor=colors.HexColor('#94A3B8'), strokeColor=None))
-    d.add(String(13, 17, "PC", fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor('#2563EB')))
+def create_mg_logo_drawing():
+    d = Drawing(40, 40)
+    # Mister Genius Crimson Red Badge
+    d.add(Rect(0, 0, 40, 40, rx=8, ry=8, fillColor=colors.HexColor('#DC2626'), strokeColor=None))
+    # Inner Badge Wording / Emblem
+    d.add(String(7, 24, "MG", fontName="Helvetica-Bold", fontSize=16, fillColor=colors.white))
+    d.add(String(10, 8, "SA", fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor('#FECDD3')))
     return d
 
 def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_results=None):
@@ -170,21 +170,21 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     styles = getSampleStyleSheet()
 
-    title_style = ParagraphStyle(
-        'DocTitle',
+    mg_brand_title = ParagraphStyle(
+        'MGDocTitle',
         parent=styles['Heading1'],
         fontName='Helvetica-Bold',
         fontSize=18,
-        textColor=colors.HexColor('#1E293B'),
+        textColor=colors.HexColor('#DC2626'),
         spaceAfter=2
     )
 
     subtitle_style = ParagraphStyle(
         'DocSubtitle',
         parent=styles['Normal'],
-        fontName='Helvetica',
+        fontName='Helvetica-Bold',
         fontSize=10,
-        textColor=colors.HexColor('#64748B'),
+        textColor=colors.HexColor('#0F172A'),
         spaceAfter=12
     )
 
@@ -193,7 +193,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
         parent=styles['Heading2'],
         fontName='Helvetica-Bold',
         fontSize=12,
-        textColor=colors.HexColor('#2563EB'),
+        textColor=colors.HexColor('#DC2626'),
         spaceBefore=10,
         spaceAfter=6
     )
@@ -213,20 +213,29 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
         fontName='Helvetica-Bold'
     )
 
+    footer_text = ParagraphStyle(
+        'FooterText',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=8,
+        textColor=colors.HexColor('#64748B'),
+        alignment=1
+    )
+
     elements = []
 
-    # Title Banner with Logo
+    # Title Banner with Mister Genius Logo
     header_table_data = [
         [
-            create_logo_drawing(),
+            create_mg_logo_drawing(),
             [
-                Paragraph("PC DIAGNOSTIC & RAPPORT", title_style),
-                Paragraph("Rapport d'Expertise Technique & Bilan Matériel Approfondi", subtitle_style)
+                Paragraph("MISTER GENIUS SA", mg_brand_title),
+                Paragraph("Rapport d'Expertise Technique & Diagnostic Informatique Client", subtitle_style)
             ]
         ]
     ]
 
-    t_header = Table(header_table_data, colWidths=[45, 495])
+    t_header = Table(header_table_data, colWidths=[50, 490])
     t_header.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
@@ -235,7 +244,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     ]))
 
     elements.append(t_header)
-    elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2563EB'), spaceAfter=12))
+    elements.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#DC2626'), spaceAfter=12))
 
     # 1. Client & PC Info
     elements.append(Paragraph("1. INFORMATIONS CLIENT & MACHINE", section_heading))
@@ -243,7 +252,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
         [
             Paragraph(f"<b>Client :</b> {client_data.get('clientName', 'Non spécifié')}", normal_text),
             Paragraph(f"<b>Date :</b> {client_data.get('date', 'N/A')}", normal_text),
-            Paragraph(f"<b>Technicien :</b> {client_data.get('technician', 'N/A')}", normal_text)
+            Paragraph(f"<b>Technicien Mister Genius :</b> {client_data.get('technician', 'N/A')}", normal_text)
         ],
         [
             Paragraph(f"<b>Type Client :</b> {client_data.get('clientType', 'Particulier')}", normal_text),
@@ -254,9 +263,9 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     t_client = Table(client_table_data, colWidths=[180, 180, 180])
     t_client.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
-        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#FEF2F2')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#FECDD3')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#FECDD3')),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
@@ -290,8 +299,8 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     t_synth = Table(synth_table_data, colWidths=[180, 180, 180])
     t_synth.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F1F5F9')),
-        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#CBD5E1')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
+        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#0F172A')),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
@@ -344,7 +353,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     t_diag = Table(diag_rows, colWidths=[140, 300, 100])
     t_diag.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#334155')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0F172A')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
         ('TOPPADDING', (0, 0), (-1, -1), 5),
@@ -357,7 +366,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     elements.append(Spacer(1, 10))
 
     # 4. Questionnaire & Maintenance Actions
-    elements.append(Paragraph("4. RELEVÉ DE MAINTENANCE & CONTRÔLES TECHNICIEN", section_heading))
+    elements.append(Paragraph("4. RELEVÉ DE MAINTENANCE & CONTRÔLES TECHNICIEN MISTER GENIUS", section_heading))
 
     chk = questionnaire.get("checklist", {})
     chk_rows = [
@@ -371,7 +380,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     t_chk = Table(chk_rows, colWidths=[380, 160])
     t_chk.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#475569')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#334155')),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
         ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
@@ -391,25 +400,27 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     if questionnaire.get("observations"):
         elements.append(Spacer(1, 6))
-        elements.append(Paragraph(f"<b>Observations du technicien :</b> {questionnaire['observations']}", normal_text))
+        elements.append(Paragraph(f"<b>Observations du technicien Mister Genius SA :</b> {questionnaire['observations']}", normal_text))
 
     elements.append(Spacer(1, 14))
 
     # 5. Signatures Block
     sig_data = [
-        [Paragraph("<b>Signature Technicien</b>", bold_text), Paragraph("<b>Bon pour accord Client / Signature</b>", bold_text)],
+        [Paragraph("<b>Signature Technicien Mister Genius SA</b>", bold_text), Paragraph("<b>Bon pour accord Client / Signature</b>", bold_text)],
         ["\n\n\n", "\n\n\n"]
     ]
     t_sig = Table(sig_data, colWidths=[260, 260])
     t_sig.setStyle(TableStyle([
         ('BOX', (0, 0), (0, -1), 0.5, colors.HexColor('#CBD5E1')),
         ('BOX', (1, 0), (1, -1), 0.5, colors.HexColor('#CBD5E1')),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F8FAFC')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FEF2F2')),
         ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
     ]))
 
     elements.append(KeepTogether([t_sig]))
+    elements.append(Spacer(1, 10))
+    elements.append(Paragraph("Mister Genius SA • Expertise & Maintenance Informatique Pour Particuliers et Professionnels", footer_text))
 
     doc.build(elements)
     return filepath

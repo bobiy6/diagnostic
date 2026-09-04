@@ -1,5 +1,6 @@
 import os
 import unittest
+import tempfile
 import pdf_report
 import system_diag
 import system_hardware_benchmarks
@@ -46,14 +47,14 @@ class TestPCDiagnostic(unittest.TestCase):
         self.assertIn("6 mois", synth["maintenanceInterval"])
         self.assertEqual(synth["nextMaintenanceDate"], "2027-03-01")
 
-    def test_pdf_report_generation(self):
-        filepath = "/tmp/test_unit_report.pdf"
+    def test_pdf_report_generation_mg_branding(self):
+        filepath = os.path.join(tempfile.gettempdir(), "test_mg_unit_report.pdf")
         if os.path.exists(filepath):
             os.remove(filepath)
         benchmarks = system_hardware_benchmarks.run_all_hardware_benchmarks()
         pdf_report.generate_pdf_report(
             filepath,
-            {"clientName": "Unit Test Client"},
+            {"clientName": "Mister Genius SA Test Client"},
             {"checklist": {}},
             system_diag.get_system_diagnostics(),
             benchmarks
