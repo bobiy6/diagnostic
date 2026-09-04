@@ -1,10 +1,10 @@
 import os
 import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether, Image as ReportLabImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from reportlab.graphics.shapes import Drawing, Rect, String
+import asset_utils
 
 def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None):
     score = 100
@@ -155,20 +155,6 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
         "nextMaintenanceDate": next_maint_date
     }
 
-def create_mg_logo_drawing():
-    """
-    Renders official Mister Genius SA logo badge emblem with Genius Blue (#0072CE) & Accent Yellow (#FFC72C).
-    """
-    d = Drawing(48, 48)
-    # Genius Blue Shadow Frame
-    d.add(Rect(0, 0, 48, 48, rx=10, ry=10, fillColor=colors.HexColor('#0072CE'), strokeColor=None))
-    # Accent Yellow Bar
-    d.add(Rect(0, 0, 48, 5, rx=2, ry=2, fillColor=colors.HexColor('#FFC72C'), strokeColor=None))
-    # Genius Emblem String
-    d.add(String(8, 25, "MG", fontName="Helvetica-Bold", fontSize=18, fillColor=colors.white))
-    d.add(String(10, 8, "S.A.", fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor('#FFC72C')))
-    return d
-
 def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_results=None):
     synthesis = calculate_synthesis(client_data, questionnaire, auto_data, test_results)
     doc = SimpleDocTemplate(
@@ -187,7 +173,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
         parent=styles['Heading1'],
         fontName='Helvetica-Bold',
         fontSize=18,
-        textColor=colors.HexColor('#0072CE'),
+        textColor=colors.HexColor('#0099DA'),
         spaceAfter=2
     )
 
@@ -196,7 +182,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
         fontSize=10,
-        textColor=colors.HexColor('#1E293B'),
+        textColor=colors.HexColor('#003B71'),
         spaceAfter=12
     )
 
@@ -205,7 +191,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
         parent=styles['Heading2'],
         fontName='Helvetica-Bold',
         fontSize=11,
-        textColor=colors.HexColor('#0072CE'),
+        textColor=colors.HexColor('#0099DA'),
         spaceBefore=10,
         spaceAfter=6
     )
@@ -236,18 +222,24 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     elements = []
 
-    # Title Banner with Official Mister Genius Logo
+    # Title Banner with High-Resolution Official Mister Genius Logo PNG Image
+    logo_path = asset_utils.get_asset_path("assets/mister_genius_logo.png")
+    if os.path.exists(logo_path):
+        logo_element = ReportLabImage(logo_path, width=160, height=48)
+    else:
+        logo_element = Paragraph("<b>MISTER GENIUS SA</b>", mg_brand_title)
+
     header_table_data = [
         [
-            create_mg_logo_drawing(),
+            logo_element,
             [
                 Paragraph("MISTER GENIUS SA", mg_brand_title),
-                Paragraph("Rapport d'Expertise Technique & Diagnostic Informatique Approfondi", subtitle_style)
+                Paragraph("Rapport d'Expertise Technique & Diagnostic Informatique Client", subtitle_style)
             ]
         ]
     ]
 
-    t_header = Table(header_table_data, colWidths=[55, 485])
+    t_header = Table(header_table_data, colWidths=[170, 370])
     t_header.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
@@ -256,7 +248,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     ]))
 
     elements.append(t_header)
-    elements.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#0072CE'), spaceAfter=12))
+    elements.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#0099DA'), spaceAfter=12))
 
     # 1. Client & PC Info
     elements.append(Paragraph("1. INFORMATIONS CLIENT & MACHINE", section_heading))
@@ -275,7 +267,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     t_client = Table(client_table_data, colWidths=[180, 180, 180])
     t_client.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F0F7FF')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F0F9FF')),
         ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#BAE6FD')),
         ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#BAE6FD')),
         ('TOPPADDING', (0, 0), (-1, -1), 5),
@@ -312,7 +304,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     t_synth = Table(synth_table_data, colWidths=[180, 180, 180])
     t_synth.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
-        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#0072CE')),
+        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#0099DA')),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
@@ -371,7 +363,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     t_diag = Table(diag_rows, colWidths=[130, 310, 100])
     t_diag.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0072CE')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0099DA')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
         ('TOPPADDING', (0, 0), (-1, -1), 4),
@@ -431,14 +423,14 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     t_sig.setStyle(TableStyle([
         ('BOX', (0, 0), (0, -1), 0.5, colors.HexColor('#CBD5E1')),
         ('BOX', (1, 0), (1, -1), 0.5, colors.HexColor('#CBD5E1')),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F0F7FF')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F0F9FF')),
         ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
     ]))
 
     elements.append(KeepTogether([t_sig]))
     elements.append(Spacer(1, 8))
-    elements.append(Paragraph("Mister Genius SA • Expertise & Maintenance Informatique Pour Particuliers et Professionnels • www.mistergenius.be", footer_text))
+    elements.append(Paragraph("Mister Genius SA • Il a toujours une solution • www.mistergenius.be", footer_text))
 
     doc.build(elements)
     return filepath

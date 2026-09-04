@@ -12,7 +12,7 @@ class ClientView(ctk.CTkFrame):
             self,
             text="Fiche Client & Machine - Mister Genius SA",
             font=ctk.CTkFont(size=18, weight="bold"),
-            text_color="#DC2626"
+            text_color="#0099DA"
         )
         title.grid(row=0, column=0, columnspan=2, padx=20, pady=(20, 5), sticky="w")
 
@@ -20,23 +20,23 @@ class ClientView(ctk.CTkFrame):
             self,
             text="Informations sur l'intervention technique (sans coordonnées personnelles)",
             font=ctk.CTkFont(size=12),
-            text_color="gray"
+            text_color="#64748B"
         )
         subtitle.grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="w")
 
         # Fields
         ctk.CTkLabel(self, text="Nom Client / Raison Sociale :").grid(row=2, column=0, padx=20, pady=10, sticky="w")
-        self.entry_client_name = ctk.CTkEntry(self, placeholder_text="ex. Dupont Jean / SARL Tech", border_color="#DC2626")
+        self.entry_client_name = ctk.CTkEntry(self, placeholder_text="ex. Dupont Jean / SARL Tech", border_color="#0099DA")
         self.entry_client_name.insert(0, "Dupont Informatique")
         self.entry_client_name.grid(row=2, column=1, padx=20, pady=10, sticky="ew")
 
         ctk.CTkLabel(self, text="Date d'intervention :").grid(row=3, column=0, padx=20, pady=10, sticky="w")
-        self.entry_date = ctk.CTkEntry(self, border_color="#DC2626")
+        self.entry_date = ctk.CTkEntry(self, border_color="#0099DA")
         self.entry_date.insert(0, datetime.datetime.now().strftime("%Y-%m-%d"))
         self.entry_date.grid(row=3, column=1, padx=20, pady=10, sticky="ew")
 
         ctk.CTkLabel(self, text="Technicien Mister Genius :").grid(row=4, column=0, padx=20, pady=10, sticky="w")
-        self.entry_technician = ctk.CTkEntry(self, placeholder_text="ex. Alexandre Martin", border_color="#DC2626")
+        self.entry_technician = ctk.CTkEntry(self, placeholder_text="ex. Alexandre Martin", border_color="#0099DA")
         self.entry_technician.insert(0, "Alexandre Martin")
         self.entry_technician.grid(row=4, column=1, padx=20, pady=10, sticky="ew")
 
@@ -44,29 +44,29 @@ class ClientView(ctk.CTkFrame):
         self.option_client_type = ctk.CTkOptionMenu(
             self,
             values=["Particulier", "Professionnel"],
-            fg_color="#DC2626",
-            button_color="#B91C1C",
-            button_hover_color="#991B1B"
+            fg_color="#0099DA",
+            button_color="#0072CE",
+            button_hover_color="#0056B3"
         )
         self.option_client_type.grid(row=5, column=1, padx=20, pady=10, sticky="ew")
 
         ctk.CTkLabel(self, text="Marque du PC :").grid(row=6, column=0, padx=20, pady=10, sticky="w")
-        self.entry_pc_brand = ctk.CTkEntry(self, placeholder_text="ex. Asus, Lenovo, HP...", border_color="#DC2626")
+        self.entry_pc_brand = ctk.CTkEntry(self, placeholder_text="ex. Asus, Lenovo, HP...", border_color="#0099DA")
         self.entry_pc_brand.insert(0, "Asus")
         self.entry_pc_brand.grid(row=6, column=1, padx=20, pady=10, sticky="ew")
 
         ctk.CTkLabel(self, text="Modèle du PC :").grid(row=7, column=0, padx=20, pady=10, sticky="w")
-        self.entry_pc_model = ctk.CTkEntry(self, placeholder_text="ex. ZenBook 15 / ThinkPad X1", border_color="#DC2626")
+        self.entry_pc_model = ctk.CTkEntry(self, placeholder_text="ex. ZenBook 15 / ThinkPad X1", border_color="#0099DA")
         self.entry_pc_model.insert(0, "ZenBook Pro 15")
         self.entry_pc_model.grid(row=7, column=1, padx=20, pady=10, sticky="ew")
 
         ctk.CTkLabel(self, text="N° de Série :").grid(row=8, column=0, padx=20, pady=10, sticky="w")
-        self.entry_serial = ctk.CTkEntry(self, placeholder_text="ex. SN-883920-AS", border_color="#DC2626")
+        self.entry_serial = ctk.CTkEntry(self, placeholder_text="ex. SN-883920-AS", border_color="#0099DA")
         self.entry_serial.insert(0, "SN-883920-AS")
         self.entry_serial.grid(row=8, column=1, padx=20, pady=10, sticky="ew")
 
         ctk.CTkLabel(self, text="Motif de consultation :").grid(row=9, column=0, padx=20, pady=10, sticky="nw")
-        self.textbox_reason = ctk.CTkTextbox(self, height=80, border_color="#DC2626", border_width=1)
+        self.textbox_reason = ctk.CTkTextbox(self, height=80, border_color="#0099DA", border_width=1)
         self.textbox_reason.insert("1.0", "Surchauffe régulière, ralentissements au lancement des logiciels métiers")
         self.textbox_reason.grid(row=9, column=1, padx=20, pady=10, sticky="ew")
 

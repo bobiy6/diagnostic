@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
+from PIL import Image
 
 from gui_client_view import ClientView
 from gui_questionnaire_view import QuestionnaireView
@@ -9,6 +10,7 @@ from gui_diag_view import DiagView
 from gui_tests_view import TestsView
 from gui_synthesis_view import SynthesisView
 import pdf_report
+import asset_utils
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -18,40 +20,37 @@ class PCDiagnosticApp(ctk.CTk):
         super().__init__()
 
         self.title("Mister Genius SA - PC Diagnostic & Rapport Technique")
-        self.geometry("1000 x 720")
-        self.minsize(880, 640)
+        self.geometry("1020 x 740")
+        self.minsize(900, 660)
 
-        # Top Header Bar (Mister Genius Blue #0072CE & Yellow Accent #FFC72C)
-        self.header_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="#1E293B")
+        # Top Header Bar (Mister Genius Clean Dark Navy & Cyan Accent Theme)
+        self.header_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="#0F172A")
         self.header_frame.pack(fill="x", side="top", padx=0, pady=0)
 
-        # Brand Badge & Title
-        self.logo_badge = ctk.CTkButton(
-            self.header_frame,
-            text="MG",
-            width=40,
-            height=40,
-            fg_color="#0072CE",
-            hover_color="#0056B3",
-            font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="#FFFFFF",
-            corner_radius=8
-        )
-        self.logo_badge.pack(side="left", padx=(20, 10), pady=12)
-
-        self.app_title = ctk.CTkLabel(
-            self.header_frame,
-            text="MISTER GENIUS",
-            font=ctk.CTkFont(size=20, weight="bold"),
-            text_color="#0072CE"
-        )
-        self.app_title.pack(side="left", padx=(0, 5), pady=12)
+        # Official Logo Image
+        logo_path = asset_utils.get_asset_path("assets/mister_genius_logo.png")
+        if os.path.exists(logo_path):
+            try:
+                pil_img = Image.open(logo_path)
+                self.logo_image = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(160, 48))
+                self.logo_label = ctk.CTkLabel(self.header_frame, image=self.logo_image, text="")
+                self.logo_label.pack(side="left", padx=(15, 10), pady=10)
+            except Exception:
+                self.logo_label = ctk.CTkLabel(
+                    self.header_frame, text="MISTER GENIUS", font=ctk.CTkFont(size=20, weight="bold"), text_color="#0099DA"
+                )
+                self.logo_label.pack(side="left", padx=(15, 10), pady=10)
+        else:
+            self.logo_label = ctk.CTkLabel(
+                self.header_frame, text="MISTER GENIUS", font=ctk.CTkFont(size=20, weight="bold"), text_color="#0099DA"
+            )
+            self.logo_label.pack(side="left", padx=(15, 10), pady=10)
 
         self.app_subtitle = ctk.CTkLabel(
             self.header_frame,
             text="SA • Diagnostic & Rapport Technique Client",
-            font=ctk.CTkFont(size=13, weight="normal"),
-            text_color="#FFC72C"
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color="#0099DA"
         )
         self.app_subtitle.pack(side="left", padx=5, pady=12)
 
@@ -59,8 +58,8 @@ class PCDiagnosticApp(ctk.CTk):
         self.btn_pdf = ctk.CTkButton(
             self.header_frame,
             text="Générer Rapport PDF",
-            fg_color="#0072CE",
-            hover_color="#0056B3",
+            fg_color="#0099DA",
+            hover_color="#0072CE",
             font=ctk.CTkFont(size=12, weight="bold"),
             command=self.export_pdf
         )
@@ -76,7 +75,7 @@ class PCDiagnosticApp(ctk.CTk):
         self.btn_new.pack(side="right", padx=5, pady=12)
 
         # Tab View
-        self.tabview = ctk.CTkTabview(self, segmented_button_selected_color="#0072CE", segmented_button_selected_hover_color="#0056B3")
+        self.tabview = ctk.CTkTabview(self, segmented_button_selected_color="#0099DA", segmented_button_selected_hover_color="#0072CE")
         self.tabview.pack(fill="both", expand=True, padx=15, pady=15)
 
         self.tab_client = self.tabview.add("Fiche Client")

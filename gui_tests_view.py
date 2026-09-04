@@ -12,7 +12,7 @@ class TestsView(ctk.CTkFrame):
             self,
             text="Mister Genius SA - Benchmarks & Test de Piétinement 25 Min",
             font=ctk.CTkFont(size=18, weight="bold"),
-            text_color="#0072CE"
+            text_color="#0099DA"
         )
         title.grid(row=0, column=0, padx=20, pady=(15, 2), sticky="w")
 
@@ -20,7 +20,7 @@ class TestsView(ctk.CTkFrame):
             self,
             text="Évaluation réelle CPU, MemTest RAM, IOPS Disque, GPU 3D et Test de Piétinement Professionnel (25 Min)",
             font=ctk.CTkFont(size=12),
-            text_color="gray"
+            text_color="#64748B"
         )
         subtitle.grid(row=1, column=0, padx=20, pady=(0, 10), sticky="w")
 
@@ -40,15 +40,15 @@ class TestsView(ctk.CTkFrame):
         self.btn_run_deep = ctk.CTkButton(
             btn_frame,
             text="TEST DE PIÉTINEMENT & ENDURANCE 25 MIN (Mister Genius SA)",
-            fg_color="#0072CE",
-            hover_color="#0056B3",
+            fg_color="#0099DA",
+            hover_color="#0072CE",
             font=ctk.CTkFont(size=12, weight="bold"),
             command=lambda: self.start_benchmark_thread(quick=False)
         )
         self.btn_run_deep.pack(side="left")
 
         # Progress bar & Status
-        self.progress_bar = ctk.CTkProgressBar(self, progress_color="#0072CE")
+        self.progress_bar = ctk.CTkProgressBar(self, progress_color="#0099DA")
         self.progress_bar.set(0)
         self.progress_bar.grid(row=3, column=0, padx=20, pady=(10, 5), sticky="ew")
 
