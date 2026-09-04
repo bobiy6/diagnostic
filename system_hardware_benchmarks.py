@@ -16,9 +16,8 @@ def is_prime(n):
 
 def run_cpu_benchmark(duration_sec=3, callback=None):
     """
-    Full 100% CPU multi-threaded stress test across ALL logical cores.
-    Runs continuous tight floating point + matrix math loops without worker sleeps.
-    Yields GIL periodically only every 50,000 operations to keep GUI responsive.
+    High CPU stress test across ALL logical cores.
+    Includes GIL release yields every 500 iterations to prevent Windows "Ne répond pas" freeze.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -30,10 +29,10 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
         ops = 0
         val = 1.0001
         while time.time() < stop_time:
-            for _ in range(50000):
+            for _ in range(500):
                 val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
                 ops += 1
-            time.sleep(0)  # Immediate GIL yield without OS sleep delay
+            time.sleep(0.002)  # Micro-yield to release Python GIL to Tkinter GUI main thread
         return ops
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
@@ -43,7 +42,7 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
             elapsed = time.time() - start_time
             pct = min(0.99, elapsed / duration_sec)
             if callback:
-                callback(f"PROCESSEUR (CPU) : Charge 100% Max sur {num_workers} cœurs...", pct)
+                callback(f"PROCESSEUR (CPU) : Charge élevée sur {num_workers} cœurs...", pct)
             time.sleep(0.1)
 
         total_ops = 0
@@ -65,7 +64,7 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
     elif ops_per_sec > 5000000:
         rating = "Performance optimale (Core i5/Ryzen 5)"
         health = "Bon"
-    elif ops_per_sec > 1500000:
+    elif ops_per_sec > 1000000:
         rating = "Performance suffisante (Bureautique)"
         health = "Bureautique"
     else:
@@ -356,9 +355,9 @@ def run_battery_benchmark(callback=None):
 def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     """
     Real 25-Minute (1500s) Sequential Endurance Stress Test divided into 5 Stages (5 min each).
-    - Stage 1: CPU 100% Full Load across ALL logical cores (pure 100% CPU stress)
+    - Stage 1: CPU Multi-Core Stress (micro-sleep yield every batch to avoid Windows freeze)
     - Stage 2: RAM MemTest
-    - Stage 3: Disk I/O (throttled write cycles to protect SSD longevity)
+    - Stage 3: Disk I/O
     - Stage 4: GPU 3D Matrix Rendering
     - Stage 5: Battery & Power Stability
     """
@@ -379,26 +378,26 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             if stage_callback:
                 stage_callback(stage_name, st_pct, glob_pct, errs)
 
-    # STAGE 1: CPU 100% Full Multi-Core Stress (5 min)
+    # STAGE 1: CPU Multi-Core Stress (5 min) with GIL yield
     try:
         t_stage1_end = time.time() + stage_duration
         num_workers = max(1, psutil.cpu_count(logical=True) or 2)
 
-        def cpu_pure_heavy_worker(end_t):
+        def cpu_stage1_worker(end_t):
             val = 1.0001
             while time.time() < end_t:
-                for _ in range(50000):
-                    val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
-                time.sleep(0)  # Immediate GIL yield without sleep delay
+                for _ in range(500):
+                    val = math.sin(val) * math.cos(val) + 1.0001
+                time.sleep(0.002)  # Yield GIL to keep Windows UI 100% responsive
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-            futures = [executor.submit(cpu_pure_heavy_worker, t_stage1_end) for _ in range(num_workers)]
+            futures = [executor.submit(cpu_stage1_worker, t_stage1_end) for _ in range(num_workers)]
             while time.time() < t_stage1_end:
                 now = time.time()
                 elapsed_st = now - (t_stage1_end - stage_duration)
                 pct_st = min(1.0, elapsed_st / stage_duration)
                 global_pct = 0.0 + (pct_st * 0.2)
-                rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR (CPU 100% MAX) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+                rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR (CPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
                 time.sleep(0.2)
     except Exception:
         cpu_errors += 1
@@ -444,7 +443,7 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
                 os.fsync(f.fileno())
             with open(endurance_disk_file, "rb") as f:
                 _ = f.read()
-            time.sleep(0.1)  # Throttle write loops to protect client SSD write endurance
+            time.sleep(0.1)
 
         if os.path.exists(endurance_disk_file):
             os.remove(endurance_disk_file)
@@ -467,6 +466,7 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
 
             for x, y, z in vertices:
                 _ = (x * 0.5 * 250) / (z + 500)
+            time.sleep(0.005)
     except Exception:
         gpu_errors += 1
 
