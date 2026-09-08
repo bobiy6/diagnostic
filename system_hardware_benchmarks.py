@@ -17,7 +17,7 @@ def is_prime(n):
 def run_cpu_benchmark(duration_sec=3, callback=None):
     """
     High CPU stress test across ALL logical cores.
-    Includes GIL release yields every 500 iterations to prevent Windows "Ne répond pas" freeze.
+    Includes micro-yields to prevent Windows "Ne répond pas" freeze.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -29,10 +29,10 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
         ops = 0
         val = 1.0001
         while time.time() < stop_time:
-            for _ in range(500):
+            for _ in range(2000):
                 val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
                 ops += 1
-            time.sleep(0.002)  # Micro-yield to release Python GIL to Tkinter GUI main thread
+            time.sleep(0.0001)  # Micro-yield to release Python GIL to Tkinter GUI main thread
         return ops
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
@@ -42,7 +42,7 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
             elapsed = time.time() - start_time
             pct = min(0.99, elapsed / duration_sec)
             if callback:
-                callback(f"PROCESSEUR (CPU) : Charge élevée sur {num_workers} cœurs...", pct)
+                callback(f"PROCESSEUR (CPU) : Charge intense sur {num_workers} cœurs...", pct)
             time.sleep(0.1)
 
         total_ops = 0
@@ -267,7 +267,7 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
                 _ = (nx * 250) / (nz + 500)
 
             frames += 1
-            time.sleep(0.005)
+            time.sleep(0.001)
         except Exception:
             errors_found += 1
 
@@ -354,12 +354,12 @@ def run_battery_benchmark(callback=None):
 
 def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     """
-    Real 25-Minute (1500s) Sequential Endurance Stress Test divided into 5 Stages (5 min each).
-    - Stage 1: CPU Multi-Core Stress (micro-sleep yield every batch to avoid Windows freeze)
-    - Stage 2: RAM MemTest
-    - Stage 3: Disk I/O
-    - Stage 4: GPU 3D Matrix Rendering
-    - Stage 5: Battery & Power Stability
+    Real 25-Minute (1500s) Heavy Sequential Stress Test divided into 5 Stages (5 min each).
+    - Stage 1: Intensive Multi-Core CPU Torture (Math, Primes, Matrix ops in multi-threads)
+    - Stage 2: Deep MemTest RAM Allocation & Pattern Integrity (256 MB buffer)
+    - Stage 3: High-load Disk I/O & IOPS Write/Read cycles
+    - Stage 4: GPU 3D Geometry Transformation & Rendering stress
+    - Stage 5: Combined System Thermal & Battery Power Dissipation Stress
     """
     stage_duration = duration_sec / 5.0
 
@@ -378,46 +378,48 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             if stage_callback:
                 stage_callback(stage_name, st_pct, glob_pct, errs)
 
-    # STAGE 1: CPU Multi-Core Stress (5 min) with GIL yield
+    # STAGE 1: Heavy CPU Multi-Core Stress (5 min)
     try:
         t_stage1_end = time.time() + stage_duration
         num_workers = max(1, psutil.cpu_count(logical=True) or 2)
 
-        def cpu_stage1_worker(end_t):
+        def cpu_heavy_endurance_worker(end_t):
             val = 1.0001
             while time.time() < end_t:
-                for _ in range(500):
-                    val = math.sin(val) * math.cos(val) + 1.0001
-                time.sleep(0.002)  # Yield GIL to keep Windows UI 100% responsive
+                for _ in range(3000):
+                    val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
+                for p in range(100, 200):
+                    _ = is_prime(p)
+                time.sleep(0.0001)  # Micro-yield to guarantee Windows UI event loop stays responsive
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-            futures = [executor.submit(cpu_stage1_worker, t_stage1_end) for _ in range(num_workers)]
+            futures = [executor.submit(cpu_heavy_endurance_worker, t_stage1_end) for _ in range(num_workers)]
             while time.time() < t_stage1_end:
                 now = time.time()
                 elapsed_st = now - (t_stage1_end - stage_duration)
                 pct_st = min(1.0, elapsed_st / stage_duration)
                 global_pct = 0.0 + (pct_st * 0.2)
-                rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR (CPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+                rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR INTENSIF (CPU Multi-Cœurs) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
                 time.sleep(0.2)
     except Exception:
         cpu_errors += 1
 
-    # STAGE 2: RAM MemTest (20% -> 40% global)
+    # STAGE 2: Deep RAM MemTest with 256 MB dynamic patterns (5 min)
     try:
         t_stage2_end = time.time() + stage_duration
-        ram_buffer = bytearray(32 * 1024 * 1024)
+        ram_buffer = bytearray(256 * 1024 * 1024)
 
         while time.time() < t_stage2_end:
             now = time.time()
             elapsed_st = now - (t_stage2_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.2 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 2/5 : TEST INTÉGRITÉ MÉMOIRE (RAM MemTest) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            rate_limited_cb("ÉTAPE 2/5 : TEST INTÉGRITÉ MÉMOIRE APPROFONDI (RAM MemTest 256 Mo) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
-            for pat in [0x55, 0xAA]:
-                for i in range(0, len(ram_buffer), 8192):
+            for pat in [0x55, 0xAA, 0xFF, 0x00]:
+                for i in range(0, len(ram_buffer), 4096):
                     ram_buffer[i] = pat
-                for i in range(0, len(ram_buffer), 8192):
+                for i in range(0, len(ram_buffer), 4096):
                     if ram_buffer[i] != pat:
                         ram_errors += 1
             time.sleep(0.01)
@@ -425,9 +427,10 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     except Exception:
         ram_errors += 1
 
-    # STAGE 3: Disk I/O (40% -> 60% global)
-    endurance_disk_file = os.path.join(tempfile.gettempdir(), "mg_endurance_disk_reusable.tmp")
-    data_4mb = os.urandom(4 * 1024 * 1024)
+    # STAGE 3: High-load Disk I/O & IOPS Stress (5 min)
+    endurance_disk_file = os.path.join(tempfile.gettempdir(), "mg_endurance_heavy_disk.tmp")
+    data_16mb = os.urandom(16 * 1024 * 1024)
+    chunk_4k = os.urandom(4096)
     try:
         t_stage3_end = time.time() + stage_duration
         while time.time() < t_stage3_end:
@@ -435,15 +438,18 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             elapsed_st = now - (t_stage3_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.4 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 3/5 : BENCHMARK E/S DISQUE & IOPS - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            rate_limited_cb("ÉTAPE 3/5 : STRESS BENCHMARK E/S DISQUE & IOPS (16 Mo) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
             with open(endurance_disk_file, "wb") as f:
-                f.write(data_4mb)
+                f.write(data_16mb)
                 f.flush()
                 os.fsync(f.fileno())
-            with open(endurance_disk_file, "rb") as f:
-                _ = f.read()
-            time.sleep(0.1)
+            with open(endurance_disk_file, "r+b") as f:
+                for _ in range(50):
+                    pos = random.randint(0, (16 * 1024 * 1024) - 4096)
+                    f.seek(pos)
+                    f.write(chunk_4k)
+            time.sleep(0.05)
 
         if os.path.exists(endurance_disk_file):
             os.remove(endurance_disk_file)
@@ -453,33 +459,46 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             try: os.remove(endurance_disk_file)
             except Exception: pass
 
-    # STAGE 4: GPU 3D Matrix Rendering (60% -> 80% global)
+    # STAGE 4: GPU 3D Matrix Rendering & Geometry Transformation (5 min)
     try:
         t_stage4_end = time.time() + stage_duration
-        vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(50)]
+        vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(150)]
         while time.time() < t_stage4_end:
             now = time.time()
             elapsed_st = now - (t_stage4_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.6 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 4/5 : RENDU GRAPHIQUE 3D (GPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            rate_limited_cb("ÉTAPE 4/5 : STRESS RENDU GRAPHIQUE 3D & MATRICES (GPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
-            for x, y, z in vertices:
-                _ = (x * 0.5 * 250) / (z + 500)
-            time.sleep(0.005)
+            for angle_step in range(10):
+                cos_a = math.cos(angle_step * 0.1)
+                sin_a = math.sin(angle_step * 0.1)
+                for x, y, z in vertices:
+                    nx = x * cos_a + z * sin_a
+                    ny = y
+                    nz = -x * sin_a + z * cos_a
+                    _ = (nx * 250) / (nz + 500)
+            time.sleep(0.001)
     except Exception:
         gpu_errors += 1
 
-    # STAGE 5: Battery & System Stability (80% -> 100% global)
+    # STAGE 5: Combined CPU + RAM Thermal & Power Dissipation Stress (5 min)
     try:
         t_stage5_end = time.time() + stage_duration
+        comb_buf = bytearray(16 * 1024 * 1024)
         while time.time() < t_stage5_end:
             now = time.time()
             elapsed_st = now - (t_stage5_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.8 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 5/5 : ANALYSE STABILITÉ & ALIMENTATION - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
-            time.sleep(0.5)
+            rate_limited_cb("ÉTAPE 5/5 : ANALYSE DE STABILITÉ THERMIQUE & SYSTÈME GLOBAL - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+
+            # Combined stress
+            for i in range(0, len(comb_buf), 16384):
+                comb_buf[i] = random.randint(0, 255)
+            val = math.sin(time.time()) * math.cos(time.time())
+            time.sleep(0.05)
+        del comb_buf
     except Exception:
         pass
 

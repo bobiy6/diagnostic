@@ -1,11 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import customtkinter
 
+ctk_path = os.path.dirname(customtkinter.__file__)
 
 a = Analysis(
     ['app_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/customtkinter', 'customtkinter'), ('assets', 'assets')],
+    datas=[(ctk_path, 'customtkinter'), ('assets', 'assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
