@@ -18,7 +18,7 @@ class DiagView(ctk.CTkFrame):
 
         title = ctk.CTkLabel(
             header_frame,
-            text="🔍  DIAGNOSTIC AUTOMATIQUE MATÉRIEL & SYSTÈME",
+            text="🔍  DIAGNOSTIC AUTOMATIQUE MATÉRIEL & TEMPÉRATURES EN DIRECT",
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color="#0099DA"
         )
@@ -64,9 +64,33 @@ class DiagView(ctk.CTkFrame):
         )
         btn_refresh.pack(side="left")
 
+        # LIVE TEMPERATURE TICKER CARD (REAL-TIME UPDATING)
+        self.card_thermal = ctk.CTkFrame(self, fg_color="#0F172A", corner_radius=12, border_width=2, border_color="#10B981")
+        self.card_thermal.grid(row=1, column=0, padx=0, pady=(0, 10), sticky="ew")
+
+        lbl_thermal_t = ctk.CTkLabel(
+            self.card_thermal,
+            text="🌡️  TEMPÉRATURES CAPTEURS EN DIRECT (MAJ RENAISSANTE 2S) :",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#0099DA"
+        )
+        lbl_thermal_t.pack(side="left", padx=15, pady=10)
+
+        self.lbl_cpu_temp = ctk.CTkLabel(self.card_thermal, text="CPU: --", font=ctk.CTkFont(size=12, weight="bold"), text_color="#10B981")
+        self.lbl_cpu_temp.pack(side="left", padx=15, pady=10)
+
+        self.lbl_gpu_temp = ctk.CTkLabel(self.card_thermal, text="GPU: --", font=ctk.CTkFont(size=12, weight="bold"), text_color="#94A3B8")
+        self.lbl_gpu_temp.pack(side="left", padx=15, pady=10)
+
+        self.lbl_disk_temp = ctk.CTkLabel(self.card_thermal, text="Disque: --", font=ctk.CTkFont(size=12, weight="bold"), text_color="#94A3B8")
+        self.lbl_disk_temp.pack(side="left", padx=15, pady=10)
+
+        self.lbl_thermal_status = ctk.CTkLabel(self.card_thermal, text="● STABLE", font=ctk.CTkFont(size=11, weight="bold"), text_color="#10B981")
+        self.lbl_thermal_status.pack(side="right", padx=15, pady=10)
+
         # QUICK STAT BADGES FRAME
         self.stats_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.stats_frame.grid(row=1, column=0, padx=0, pady=(0, 10), sticky="ew")
+        self.stats_frame.grid(row=2, column=0, padx=0, pady=(0, 10), sticky="ew")
         for i in range(4):
             self.stats_frame.grid_columnconfigure(i, weight=1)
 
@@ -77,7 +101,7 @@ class DiagView(ctk.CTkFrame):
 
         # TECHNICIAN WINDOWS SYSTEM UTILITIES SHORTCUTS CARD
         tools_card = ctk.CTkFrame(self, fg_color="#111827", corner_radius=10, border_width=1, border_color="#1F2937")
-        tools_card.grid(row=2, column=0, padx=0, pady=(0, 10), sticky="ew")
+        tools_card.grid(row=3, column=0, padx=0, pady=(0, 10), sticky="ew")
 
         lbl_tools = ctk.CTkLabel(
             tools_card, text="🛠️  RACCOURCIS OUTILS SYSTÈME :", font=ctk.CTkFont(size=11, weight="bold"), text_color="#0099DA"
@@ -114,15 +138,40 @@ class DiagView(ctk.CTkFrame):
         # DETAILED TEXT CONSOLE
         self.textbox_diag = ctk.CTkTextbox(
             self,
-            height=320,
+            height=280,
             font=ctk.CTkFont(family="Courier", size=11),
             fg_color="#0F172A",
             border_width=1,
             border_color="#1E293B"
         )
-        self.textbox_diag.grid(row=3, column=0, padx=0, pady=0, sticky="nsew")
+        self.textbox_diag.grid(row=4, column=0, padx=0, pady=0, sticky="nsew")
 
         self.refresh_diag()
+        self._start_live_thermal_ticker()
+
+    def _start_live_thermal_ticker(self):
+        try:
+            live_temps = system_diag.get_live_temperatures()
+            cpu_str = live_temps["cpu_temp"]
+            gpu_str = live_temps["gpu_temp"]
+            disk_str = live_temps["disk_temp"]
+            color = live_temps["status_color"]
+
+            self.lbl_cpu_temp.configure(text=f"CPU: {cpu_str}", text_color=color)
+            self.lbl_gpu_temp.configure(text=f"GPU: {gpu_str}")
+            self.lbl_disk_temp.configure(text=f"Disque: {disk_str}")
+            self.card_thermal.configure(border_color=color)
+
+            if color == "#EF4444":
+                self.lbl_thermal_status.configure(text="● SURCHAUFFE (>80°C)", text_color="#EF4444")
+            elif color == "#F59E0B":
+                self.lbl_thermal_status.configure(text="● CHAUD (>65°C)", text_color="#F59E0B")
+            else:
+                self.lbl_thermal_status.configure(text="● NOMINALE (<65°C)", text_color="#10B981")
+        except Exception:
+            pass
+        finally:
+            self.after(2000, self._start_live_thermal_ticker)
 
     def launch_sys_tool(self, cmd):
         try:

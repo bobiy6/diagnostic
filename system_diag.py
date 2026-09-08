@@ -8,7 +8,87 @@ def get_fallback(val, default_text="Non disponible"):
         return default_text
     return str(val)
 
+def get_live_temperatures():
+    """
+    Returns real-time temperature dictionary for CPU, GPU, Disk, and System.
+    """
+    results = {
+        "cpu_temp": "N/A",
+        "cpu_temp_val": None,
+        "gpu_temp": "N/A",
+        "gpu_temp_val": None,
+        "disk_temp": "N/A",
+        "disk_temp_val": None,
+        "sys_temp": "N/A",
+        "sys_temp_val": None,
+        "status_color": "#10B981"  # Default Green
+    }
+
+    try:
+        if hasattr(psutil, "sensors_temperatures"):
+            temps = psutil.sensors_temperatures()
+            if temps:
+                max_cpu_val = 0.0
+                max_gpu_val = 0.0
+                max_disk_val = 0.0
+
+                for name, entries in temps.items():
+                    name_lower = name.lower()
+                    for entry in entries:
+                        if entry.current and entry.current > 0:
+                            cur = round(entry.current, 1)
+                            if any(k in name_lower for k in ["coretemp", "cpu", "k10temp", "zenpower", "acpitz"]):
+                                if cur > max_cpu_val:
+                                    max_cpu_val = cur
+                            elif any(k in name_lower for k in ["nvme", "drivetemp", "disk", "ssd", "hdd"]):
+                                if cur > max_disk_val:
+                                    max_disk_val = cur
+                            elif any(k in name_lower for k in ["gpu", "amdgpu", "nouveau", "nvidia"]):
+                                if cur > max_gpu_val:
+                                    max_gpu_val = cur
+
+                if max_cpu_val > 0:
+                    results["cpu_temp"] = f"{max_cpu_val} °C"
+                    results["cpu_temp_val"] = max_cpu_val
+                if max_disk_val > 0:
+                    results["disk_temp"] = f"{max_disk_val} °C"
+                    results["disk_temp_val"] = max_disk_val
+                if max_gpu_val > 0:
+                    results["gpu_temp"] = f"{max_gpu_val} °C"
+                    results["gpu_temp_val"] = max_gpu_val
+
+        # Windows WMI MSAcpi_ThermalZoneTemperature fallback
+        if results["cpu_temp_val"] is None and platform.system() == "Windows":
+            try:
+                import wmi
+                w = wmi.WMI(namespace="root\\wmi")
+                thermal_zones = w.MSAcpi_ThermalZoneTemperature()
+                if thermal_zones:
+                    # Kelvin * 10 - 273.15
+                    celsius = round((thermal_zones[0].CurrentTemperature / 10.0) - 273.15, 1)
+                    if 0 < celsius < 120:
+                        results["cpu_temp"] = f"{celsius} °C"
+                        results["cpu_temp_val"] = celsius
+            except Exception:
+                pass
+
+        # Color coding based on highest temp
+        highest_val = max([v for v in [results["cpu_temp_val"], results["gpu_temp_val"], results["disk_temp_val"]] if v is not None] or [0])
+        if highest_val > 80:
+            results["status_color"] = "#EF4444"  # Red
+        elif highest_val > 65:
+            results["status_color"] = "#F59E0B"  # Yellow
+        else:
+            results["status_color"] = "#10B981"  # Green
+
+    except Exception:
+        pass
+
+    return results
+
 def get_system_diagnostics():
+    live_temps = get_live_temperatures()
+
     # 1. CPU
     try:
         cpu_model = platform.processor() or get_fallback(None)
@@ -26,20 +106,7 @@ def get_system_diagnostics():
             freq_str = "Non disponible"
 
         cpu_usage = f"{psutil.cpu_percent(interval=0.2)}%"
-
-        # Temperatures if available
-        temps_str = "Non disponible (Nécessite droits admin / capteur matériel)"
-        try:
-            temps = psutil.sensors_temperatures()
-            if temps:
-                t_list = []
-                for name, entries in temps.items():
-                    for entry in entries:
-                        t_list.append(f"{name}: {entry.current}°C")
-                if t_list:
-                    temps_str = " | ".join(t_list[:3])
-        except Exception:
-            pass
+        temps_str = live_temps["cpu_temp"] if live_temps["cpu_temp_val"] is not None else "Non disponible (Normal)"
 
         cpu_info = {
             "model": cpu_model,
@@ -237,5 +304,6 @@ def get_system_diagnostics():
         "network": network_info,
         "os": os_info,
         "antivirus": antivirus_info,
-        "recentErrors": recent_errors
+        "recentErrors": recent_errors,
+        "liveTemperatures": live_temps
     }
