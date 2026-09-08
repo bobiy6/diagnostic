@@ -33,7 +33,7 @@ def _cpu_worker_90pct_duty_cycle(stop_timestamp):
         while time.time() < t_batch_end:
             for _ in range(500):
                 val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
-        time.sleep(0.001)  # 1ms duty-cycle yield (~10% safety margin)
+        time.sleep(0.001)  # 1ms duty-cycle yield
 
 def is_prime(n):
     if n < 2:
@@ -43,9 +43,9 @@ def is_prime(n):
             return False
     return True
 
-def run_cpu_benchmark(duration_sec=3, callback=None):
+def run_cpu_benchmark(duration_sec=3, callback=None, stop_checker=None):
     """
-    Targeted ~90% Duty-Cycle CPU Stress Test with thermal & stability monitoring.
+    Targeted ~90% Duty-Cycle CPU Stress Test with thermal & stability monitoring + cancellation.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -62,6 +62,12 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
             processes.append(p)
 
         while time.time() < end_time:
+            if stop_checker and stop_checker():
+                for p in processes:
+                    if p.is_alive(): p.terminate()
+                if callback: callback("PROCESSEUR (CPU) : Test interrompu par l'utilisateur", 0.0)
+                return {"status": "ANNULÉ", "rating": "Test interrompu par l'utilisateur", "health": "Interrompu"}
+
             elapsed = time.time() - start_time
             pct = min(0.99, elapsed / duration_sec)
             temp_str = _get_cpu_temperature_safe()
@@ -86,7 +92,7 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
     final_temp = _get_cpu_temperature_safe()
 
     if callback:
-        try: callback(f"PROCESSEUR (CPU) : Terminé à 90% (Sécurité Matériel) - Temp: {final_temp} ({errors} erreur)", 1.0)
+        try: callback(f"PROCESSEUR (CPU) : Terminé à 90% - Temp: {final_temp} ({errors} erreur)", 1.0)
         except Exception: pass
 
     if num_cores >= 8:
@@ -110,9 +116,9 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
         "health": health
     }
 
-def run_ram_benchmark(duration_sec=4, block_mb=256, callback=None):
+def run_ram_benchmark(duration_sec=4, block_mb=256, callback=None, stop_checker=None):
     """
-    ~90% RAM Stress & MemTest Allocation with stability pattern verification.
+    ~90% RAM Stress & MemTest Allocation with pattern verification + cancellation.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -140,6 +146,11 @@ def run_ram_benchmark(duration_sec=4, block_mb=256, callback=None):
     try:
         pattern_idx = 0
         while time.time() < end_time:
+            if stop_checker and stop_checker():
+                del buf
+                if callback: callback("MÉMOIRE (RAM) : Test interrompu par l'utilisateur", 0.0)
+                return {"status": "ANNULÉ", "rating": "Test interrompu par l'utilisateur", "health": "Interrompu"}
+
             now = time.time()
             elapsed = now - start_time
             pct = min(0.99, elapsed / duration_sec)
@@ -158,7 +169,7 @@ def run_ram_benchmark(duration_sec=4, block_mb=256, callback=None):
 
             total_bytes_tested += size_bytes
             pattern_idx += 1
-            time.sleep(0.002)  # ~90% pacing yield
+            time.sleep(0.002)
 
         del buf
     except Exception:
@@ -193,9 +204,9 @@ def run_ram_benchmark(duration_sec=4, block_mb=256, callback=None):
         "health": health
     }
 
-def run_disk_benchmark(duration_sec=4, test_mb=128, callback=None):
+def run_disk_benchmark(duration_sec=4, test_mb=128, callback=None, stop_checker=None):
     """
-    ~90% Disk I/O & Random 4K IOPS Stress Test (Controlled FIO-style disk bench).
+    ~90% Disk I/O & Random 4K IOPS Stress Test + cancellation.
     """
     test_file = os.path.join(tempfile.gettempdir(), "pc_diag_disk_seq.tmp")
     data_block = os.urandom(1024 * 1024)
@@ -213,6 +224,11 @@ def run_disk_benchmark(duration_sec=4, test_mb=128, callback=None):
         t0 = time.time()
         with open(test_file, "wb") as f:
             for _ in range(test_mb):
+                if stop_checker and stop_checker():
+                    f.close()
+                    if os.path.exists(test_file): os.remove(test_file)
+                    if callback: callback("DISQUE STOCKAGE : Test interrompu par l'utilisateur", 0.0)
+                    return {"status": "ANNULÉ", "rating": "Test interrompu par l'utilisateur", "health": "Interrompu"}
                 f.write(data_block)
             f.flush()
             os.fsync(f.fileno())
@@ -225,7 +241,11 @@ def run_disk_benchmark(duration_sec=4, test_mb=128, callback=None):
         t2 = time.time()
         with open(test_file, "rb") as f:
             while f.read(1024 * 1024):
-                pass
+                if stop_checker and stop_checker():
+                    f.close()
+                    if os.path.exists(test_file): os.remove(test_file)
+                    if callback: callback("DISQUE STOCKAGE : Test interrompu par l'utilisateur", 0.0)
+                    return {"status": "ANNULÉ", "rating": "Test interrompu par l'utilisateur", "health": "Interrompu"}
         t3 = time.time()
         read_speed = round(test_mb / max(0.001, t3 - t2), 1)
 
@@ -237,12 +257,17 @@ def run_disk_benchmark(duration_sec=4, test_mb=128, callback=None):
             file_size = test_mb * 1024 * 1024
             iops_count = 120
             for _ in range(iops_count):
+                if stop_checker and stop_checker():
+                    f.close()
+                    if os.path.exists(test_file): os.remove(test_file)
+                    if callback: callback("DISQUE STOCKAGE : Test interrompu par l'utilisateur", 0.0)
+                    return {"status": "ANNULÉ", "rating": "Test interrompu par l'utilisateur", "health": "Interrompu"}
                 pos = random.randint(0, file_size - 4096)
                 f.seek(pos)
                 f.write(chunk_4k)
                 f.seek(pos)
                 _ = f.read(4096)
-                time.sleep(0.0001)  # Duty-cycle yield
+                time.sleep(0.0001)
             f.flush()
             os.fsync(f.fileno())
         t5 = time.time()
@@ -289,9 +314,9 @@ def run_disk_benchmark(duration_sec=4, test_mb=128, callback=None):
         "health": health
     }
 
-def run_gpu_benchmark(duration_sec=3, callback=None):
+def run_gpu_benchmark(duration_sec=3, callback=None, stop_checker=None):
     """
-    ~90% GPU 3D Geometry Matrix Rendering & Stability Test.
+    ~90% GPU 3D Geometry Matrix Rendering & Stability Test + cancellation.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -301,6 +326,10 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
     vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(200)]
 
     while time.time() < end_time:
+        if stop_checker and stop_checker():
+            if callback: callback("CARTE GRAPHIQUE (GPU) : Test interrompu par l'utilisateur", 0.0)
+            return {"status": "ANNULÉ", "rating": "Test interrompu par l'utilisateur", "health": "Interrompu"}
+
         now = time.time()
         elapsed = now - start_time
         pct = min(0.99, elapsed / duration_sec)
@@ -321,7 +350,7 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
                 _ = (nx * 250) / (nz + 500)
 
             frames += 1
-            time.sleep(0.0002)  # ~90% duty cycle yield
+            time.sleep(0.0002)
         except Exception:
             errors_found += 1
 
@@ -413,14 +442,9 @@ def run_battery_benchmark(callback=None):
             "health": "Anomalie"
         }
 
-def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
+def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None, stop_checker=None):
     """
-    Real 25-Minute (1500s) Controlled ~90% Stress Test divided into 5 Stages (5 min each).
-    - Stage 1: CPU Multiprocessing Stress at ~90% duty-cycle across ALL cores
-    - Stage 2: Deep MemTest RAM Allocation & Pattern Integrity (256 MB buffer)
-    - Stage 3: Controlled Disk I/O & IOPS Write/Read cycles (16 MB buffer)
-    - Stage 4: GPU 3D Geometry Transformation & Rendering stress
-    - Stage 5: Thermal & System Global Stability Stress
+    Real 25-Minute (1500s) Controlled ~90% Stress Test with instant cancellation check.
     """
     stage_duration = duration_sec / 5.0
 
@@ -453,6 +477,12 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             processes.append(p)
 
         while time.time() < t_stage1_end:
+            if stop_checker and stop_checker():
+                for p in processes:
+                    if p.is_alive(): p.terminate()
+                if stage_callback: stage_callback("TEST 25 MIN INTERROMPU PAR L'UTILISATEUR", 0.0, 0.0, 0)
+                return {"status": "ANNULÉ", "health": "Interrompu par l'utilisateur"}
+
             now = time.time()
             elapsed_st = now - (t_stage1_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
@@ -483,6 +513,11 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             ram_buffer = bytearray(32 * 1024 * 1024)
 
         while time.time() < t_stage2_end:
+            if stop_checker and stop_checker():
+                del ram_buffer
+                if stage_callback: stage_callback("TEST 25 MIN INTERROMPU PAR L'UTILISATEUR", 0.0, 0.0, 0)
+                return {"status": "ANNULÉ", "health": "Interrompu par l'utilisateur"}
+
             now = time.time()
             elapsed_st = now - (t_stage2_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
@@ -507,6 +542,11 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     try:
         t_stage3_end = time.time() + stage_duration
         while time.time() < t_stage3_end:
+            if stop_checker and stop_checker():
+                if os.path.exists(endurance_disk_file): os.remove(endurance_disk_file)
+                if stage_callback: stage_callback("TEST 25 MIN INTERROMPU PAR L'UTILISATEUR", 0.0, 0.0, 0)
+                return {"status": "ANNULÉ", "health": "Interrompu par l'utilisateur"}
+
             now = time.time()
             elapsed_st = now - (t_stage3_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
@@ -537,6 +577,10 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
         t_stage4_end = time.time() + stage_duration
         vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(200)]
         while time.time() < t_stage4_end:
+            if stop_checker and stop_checker():
+                if stage_callback: stage_callback("TEST 25 MIN INTERROMPU PAR L'UTILISATEUR", 0.0, 0.0, 0)
+                return {"status": "ANNULÉ", "health": "Interrompu par l'utilisateur"}
+
             now = time.time()
             elapsed_st = now - (t_stage4_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
@@ -560,6 +604,11 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
         t_stage5_end = time.time() + stage_duration
         comb_buf = bytearray(16 * 1024 * 1024)
         while time.time() < t_stage5_end:
+            if stop_checker and stop_checker():
+                del comb_buf
+                if stage_callback: stage_callback("TEST 25 MIN INTERROMPU PAR L'UTILISATEUR", 0.0, 0.0, 0)
+                return {"status": "ANNULÉ", "health": "Interrompu par l'utilisateur"}
+
             now = time.time()
             elapsed_st = now - (t_stage5_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
@@ -591,23 +640,28 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
         "health": "Excellente Stabilité (0 erreur sur 25 min)" if total_errors == 0 else "Anomalies matérielles détectées"
     }
 
-def run_all_hardware_benchmarks(quick=True, callback=None, stage_callback=None):
+def run_all_hardware_benchmarks(quick=True, callback=None, stage_callback=None, stop_checker=None):
     """
-    Runs strictly sequential benchmarks component by component.
+    Runs strictly sequential benchmarks component by component with instant stop checking support.
     """
     if quick:
-        cpu_res = run_cpu_benchmark(duration_sec=2, callback=callback)
-        ram_res = run_ram_benchmark(duration_sec=2, block_mb=64, callback=callback)
-        disk_res = run_disk_benchmark(duration_sec=2, test_mb=32, callback=callback)
-        gpu_res = run_gpu_benchmark(duration_sec=2, callback=callback)
+        cpu_res = run_cpu_benchmark(duration_sec=2, callback=callback, stop_checker=stop_checker)
+        if stop_checker and stop_checker(): return {"status": "ANNULÉ"}
+        ram_res = run_ram_benchmark(duration_sec=2, block_mb=64, callback=callback, stop_checker=stop_checker)
+        if stop_checker and stop_checker(): return {"status": "ANNULÉ"}
+        disk_res = run_disk_benchmark(duration_sec=2, test_mb=32, callback=callback, stop_checker=stop_checker)
+        if stop_checker and stop_checker(): return {"status": "ANNULÉ"}
+        gpu_res = run_gpu_benchmark(duration_sec=2, callback=callback, stop_checker=stop_checker)
+        if stop_checker and stop_checker(): return {"status": "ANNULÉ"}
         batt_res = run_battery_benchmark(callback=callback)
         endurance_res = {"status": "Non exécuté (Mode Rapide)"}
     else:
-        endurance_res = run_25min_sequential_endurance(duration_sec=1500, stage_callback=stage_callback)
-        cpu_res = run_cpu_benchmark(duration_sec=3, callback=None)
-        ram_res = run_ram_benchmark(duration_sec=3, block_mb=128, callback=None)
-        disk_res = run_disk_benchmark(duration_sec=3, test_mb=64, callback=None)
-        gpu_res = run_gpu_benchmark(duration_sec=3, callback=None)
+        endurance_res = run_25min_sequential_endurance(duration_sec=1500, stage_callback=stage_callback, stop_checker=stop_checker)
+        if stop_checker and stop_checker(): return {"status": "ANNULÉ"}
+        cpu_res = run_cpu_benchmark(duration_sec=3, callback=None, stop_checker=stop_checker)
+        ram_res = run_ram_benchmark(duration_sec=3, block_mb=128, callback=None, stop_checker=stop_checker)
+        disk_res = run_disk_benchmark(duration_sec=3, test_mb=64, callback=None, stop_checker=stop_checker)
+        gpu_res = run_gpu_benchmark(duration_sec=3, callback=None, stop_checker=stop_checker)
         batt_res = run_battery_benchmark(callback=None)
 
     return {

@@ -1,3 +1,8 @@
+import json
+import subprocess
+import sys
+import tkinter as tk
+from tkinter import filedialog, messagebox
 import customtkinter as ctk
 import system_diag
 
@@ -19,17 +24,45 @@ class DiagView(ctk.CTkFrame):
         )
         title.pack(side="left", padx=20, pady=12)
 
+        # Action Buttons
+        btn_container = ctk.CTkFrame(header_frame, fg_color="transparent")
+        btn_container.pack(side="right", padx=15, pady=8)
+
+        btn_copy = ctk.CTkButton(
+            btn_container,
+            text="📋  Copier Texte",
+            fg_color="#1E293B",
+            hover_color="#334155",
+            height=34,
+            corner_radius=8,
+            font=ctk.CTkFont(size=11, weight="bold"),
+            command=self.copy_diag_clipboard
+        )
+        btn_copy.pack(side="left", padx=(0, 6))
+
+        btn_json = ctk.CTkButton(
+            btn_container,
+            text="💾  Exporter JSON",
+            fg_color="#1E293B",
+            hover_color="#334155",
+            height=34,
+            corner_radius=8,
+            font=ctk.CTkFont(size=11, weight="bold"),
+            command=self.export_diag_json
+        )
+        btn_json.pack(side="left", padx=(0, 6))
+
         btn_refresh = ctk.CTkButton(
-            header_frame,
-            text="🔄  Actualiser Métriques",
+            btn_container,
+            text="🔄  Actualiser",
             fg_color="#0099DA",
             hover_color="#0072CE",
             height=34,
             corner_radius=8,
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ctk.CTkFont(size=11, weight="bold"),
             command=self.refresh_diag
         )
-        btn_refresh.pack(side="right", padx=15, pady=12)
+        btn_refresh.pack(side="left")
 
         # QUICK STAT BADGES FRAME
         self.stats_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -42,18 +75,85 @@ class DiagView(ctk.CTkFrame):
         self.card_disk = self._create_stat_card(self.stats_frame, 2, "💾 STOCKAGE", "Espace: --", "État: --")
         self.card_batt = self._create_stat_card(self.stats_frame, 3, "🔋 BATTERIE", "Niveau: --", "Santé: --")
 
+        # TECHNICIAN WINDOWS SYSTEM UTILITIES SHORTCUTS CARD
+        tools_card = ctk.CTkFrame(self, fg_color="#111827", corner_radius=10, border_width=1, border_color="#1F2937")
+        tools_card.grid(row=2, column=0, padx=0, pady=(0, 10), sticky="ew")
+
+        lbl_tools = ctk.CTkLabel(
+            tools_card, text="🛠️  RACCOURCIS OUTILS SYSTÈME :", font=ctk.CTkFont(size=11, weight="bold"), text_color="#0099DA"
+        )
+        lbl_tools.pack(side="left", padx=15, pady=8)
+
+        tools_btn_frame = ctk.CTkFrame(tools_card, fg_color="transparent")
+        tools_btn_frame.pack(side="left", padx=5, pady=6)
+
+        btn_taskmgr = ctk.CTkButton(
+            tools_btn_frame, text="Gestionnaire Tâches", fg_color="#334155", hover_color="#475569", height=28,
+            font=ctk.CTkFont(size=10, weight="bold"), command=lambda: self.launch_sys_tool("taskmgr")
+        )
+        btn_taskmgr.pack(side="left", padx=4)
+
+        btn_devmgmt = ctk.CTkButton(
+            tools_btn_frame, text="Gestionnaire Périphériques", fg_color="#334155", hover_color="#475569", height=28,
+            font=ctk.CTkFont(size=10, weight="bold"), command=lambda: self.launch_sys_tool("devmgmt.msc")
+        )
+        btn_devmgmt.pack(side="left", padx=4)
+
+        btn_resmon = ctk.CTkButton(
+            tools_btn_frame, text="Moniteur Ressources", fg_color="#334155", hover_color="#475569", height=28,
+            font=ctk.CTkFont(size=10, weight="bold"), command=lambda: self.launch_sys_tool("resmon")
+        )
+        btn_resmon.pack(side="left", padx=4)
+
+        btn_cleanmgr = ctk.CTkButton(
+            tools_btn_frame, text="Nettoyage Disque", fg_color="#334155", hover_color="#475569", height=28,
+            font=ctk.CTkFont(size=10, weight="bold"), command=lambda: self.launch_sys_tool("cleanmgr")
+        )
+        btn_cleanmgr.pack(side="left", padx=4)
+
         # DETAILED TEXT CONSOLE
         self.textbox_diag = ctk.CTkTextbox(
             self,
-            height=380,
+            height=320,
             font=ctk.CTkFont(family="Courier", size=11),
             fg_color="#0F172A",
             border_width=1,
             border_color="#1E293B"
         )
-        self.textbox_diag.grid(row=2, column=0, padx=0, pady=0, sticky="nsew")
+        self.textbox_diag.grid(row=3, column=0, padx=0, pady=0, sticky="nsew")
 
         self.refresh_diag()
+
+    def launch_sys_tool(self, cmd):
+        try:
+            if sys.platform == "win32":
+                subprocess.Popen(cmd, shell=True)
+            else:
+                messagebox.showinfo("Outil Système", f"Le raccourci '{cmd}' est spécifiquement conçu pour Windows.")
+        except Exception as e:
+            messagebox.showerror("Erreur Lancement", f"Impossible de lancer {cmd} :\n{str(e)}")
+
+    def copy_diag_clipboard(self):
+        text = self.textbox_diag.get("1.0", "end-1c")
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        messagebox.showinfo("Copié", "Le texte du diagnostic complet a été copié dans le presse-papier !")
+
+    def export_diag_json(self):
+        diag_data = self.get_data()
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("Fichier JSON", "*.json")],
+            initialfile=f"Mister_Genius_Diag_{diag_data.get('timestamp', 'PC').replace(':', '-').replace(' ', '_')}.json",
+            title="Exporter le Diagnostic en JSON"
+        )
+        if filepath:
+            try:
+                with open(filepath, "w", encoding="utf-8") as f:
+                    json.dump(diag_data, f, indent=4, ensure_ascii=False)
+                messagebox.showinfo("JSON Exporté", f"Données du diagnostic sauvegardées en JSON :\n{filepath}")
+            except Exception as e:
+                messagebox.showerror("Erreur Export JSON", f"Impossible d'exporter le fichier JSON :\n{str(e)}")
 
     def _create_stat_card(self, parent, col, title, line1, line2):
         card = ctk.CTkFrame(parent, fg_color="#111827", corner_radius=10, border_width=1, border_color="#1F2937")

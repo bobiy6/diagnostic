@@ -54,7 +54,21 @@ class TestsView(ctk.CTkFrame):
             font=ctk.CTkFont(size=12, weight="bold"),
             command=lambda: self.start_benchmark_thread(quick=False)
         )
-        self.btn_run_deep.pack(side="left")
+        self.btn_run_deep.pack(side="left", padx=(0, 10))
+
+        # STOP BUTTON
+        self.btn_stop = ctk.CTkButton(
+            btn_frame,
+            text="🛑  Interrompre le Test",
+            fg_color="#DC2626",
+            hover_color="#B91C1C",
+            height=38,
+            corner_radius=8,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            state="disabled",
+            command=self.stop_benchmark
+        )
+        self.btn_stop.pack(side="left")
 
         # LIVE PROGRESS & STATUS CARD
         prog_card = ctk.CTkFrame(self, fg_color="#0F172A", corner_radius=12, border_width=1, border_color="#1E293B")
@@ -95,6 +109,13 @@ class TestsView(ctk.CTkFrame):
 
         self.test_results = {}
         self.last_log_message = ""
+        self.stop_requested = False
+
+    def stop_benchmark(self):
+        self.stop_requested = True
+        self.btn_stop.configure(state="disabled", text="⏳ Interruption en cours...")
+        self.textbox_log.insert("end", "\n🛑 DEMANDE D'INTERRUPTION ENVOYÉE PAR L'UTILISATEUR...\n")
+        self.textbox_log.see("end")
 
     def update_single_progress(self, message, pct):
         try:
@@ -124,8 +145,10 @@ class TestsView(ctk.CTkFrame):
             pass
 
     def start_benchmark_thread(self, quick=True):
+        self.stop_requested = False
         self.btn_run_fast.configure(state="disabled")
         self.btn_run_deep.configure(state="disabled")
+        self.btn_stop.configure(state="normal", text="🛑  Interrompre le Test")
         self.progress_bar.set(0)
         self.textbox_log.delete("1.0", "end")
         self.lbl_errors_count.configure(text="ANOMALIES MATÉRIELLES : 0 (STABLE)", text_color="#10B981")
@@ -138,15 +161,16 @@ class TestsView(ctk.CTkFrame):
         thread.start()
 
     def run_benchmarks(self, quick):
+        stop_fn = lambda: self.stop_requested
         try:
             if quick:
                 def cb(msg, pct):
                     self.after(0, self.update_single_progress, msg, pct)
-                res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=True, callback=cb)
+                res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=True, callback=cb, stop_checker=stop_fn)
             else:
                 def stage_cb(stage_name, st_pct, glob_pct, errs):
                     self.after(0, self.update_stage_progress, stage_name, st_pct, glob_pct, errs)
-                res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=False, stage_callback=stage_cb)
+                res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=False, stage_callback=stage_cb, stop_checker=stop_fn)
 
             self.test_results = res
         except Exception as err:
@@ -154,11 +178,16 @@ class TestsView(ctk.CTkFrame):
         finally:
             def finish_ui():
                 try:
-                    self.progress_bar.set(1.0)
-                    self.lbl_stage.configure(text="TESTS SÉQUENTIELS TERMINÉS AVEC SUCCÈS !")
-                    self.textbox_log.insert("end", "\n=== TOUS LES TESTS MATÉRIELS ONT ÉTÉ EXÉCUTÉS AVEC SUCCÈS ===")
+                    if self.stop_requested:
+                        self.lbl_stage.configure(text="TEST INTERROMPU PAR L'UTILISATEUR")
+                        self.textbox_log.insert("end", "\n=== TEST INTERROMPU PAR L'UTILISATEUR ===")
+                    else:
+                        self.progress_bar.set(1.0)
+                        self.lbl_stage.configure(text="TESTS SÉQUENTIELS TERMINÉS AVEC SUCCÈS !")
+                        self.textbox_log.insert("end", "\n=== TOUS LES TESTS MATÉRIELS ONT ÉTÉ EXÉCUTÉS AVEC SUCCÈS ===")
                     self.btn_run_fast.configure(state="normal")
                     self.btn_run_deep.configure(state="normal")
+                    self.btn_stop.configure(state="disabled", text="🛑  Interrompre le Test")
                 except Exception:
                     pass
 
