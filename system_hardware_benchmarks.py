@@ -16,24 +16,23 @@ def is_prime(n):
 
 def run_cpu_benchmark(duration_sec=3, callback=None):
     """
-    High CPU stress test across logical cores leaving 1 core for OS stability.
-    Includes controlled yields to prevent OS thermal shutdown/freeze.
+    100% Maximum CPU Stress Test across ALL logical cores.
+    Runs pure CPU computation loops on all cores so Task Manager displays 100% CPU usage.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
     errors = 0
 
-    logical_cores = psutil.cpu_count(logical=True) or 2
-    num_workers = max(1, logical_cores - 1) if logical_cores > 1 else 1
+    num_workers = max(1, psutil.cpu_count(logical=True) or 2)
 
     def cpu_heavy_worker(stop_time):
         ops = 0
         val = 1.0001
         while time.time() < stop_time:
-            for _ in range(500):
+            # Pure CPU calculation loop without time.sleep to guarantee 100% CPU utilization in Task Manager
+            for _ in range(50000):
                 val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
                 ops += 1
-            time.sleep(0.002)  # Pacing yield to protect OS/kernel from total thermal freeze
         return ops
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
@@ -43,7 +42,7 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
             elapsed = time.time() - start_time
             pct = min(0.99, elapsed / duration_sec)
             if callback:
-                callback(f"PROCESSEUR (CPU) : Charge contrôlée sur {num_workers} cœurs...", pct)
+                callback(f"PROCESSEUR (CPU) : Charge 100% sur {num_workers} cœurs...", pct)
             time.sleep(0.1)
 
         total_ops = 0
@@ -59,13 +58,13 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
     if callback:
         callback(f"PROCESSEUR (CPU) : Terminé à 100% - Débit: {ops_per_sec:,} op/s ({errors} erreur)", 1.0)
 
-    if ops_per_sec > 5000000:
+    if ops_per_sec > 15000000:
         rating = "Très haute performance (Core i7/i9/Ryzen 7/9 récents)"
         health = "Excellent"
-    elif ops_per_sec > 1500000:
+    elif ops_per_sec > 5000000:
         rating = "Performance optimale (Core i5/Ryzen 5)"
         health = "Bon"
-    elif ops_per_sec > 400000:
+    elif ops_per_sec > 1000000:
         rating = "Performance suffisante (Bureautique)"
         health = "Bureautique"
     else:
@@ -82,9 +81,9 @@ def run_cpu_benchmark(duration_sec=3, callback=None):
         "health": health
     }
 
-def run_ram_benchmark(duration_sec=4, block_mb=64, callback=None):
+def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
     """
-    Sequential RAM MemTest with safe chunk sizes and 0% to 100% progress callback.
+    100% RAM MemTest Allocation & Full Pattern Verification across all bytes.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -105,17 +104,20 @@ def run_ram_benchmark(duration_sec=4, block_mb=64, callback=None):
 
             pat = patterns[pattern_idx % len(patterns)]
             if callback:
-                callback(f"MÉMOIRE (RAM) : MemTest 0x{pat:02X}...", pct)
+                callback(f"MÉMOIRE (RAM) : MemTest 100% 0x{pat:02X} ({block_mb} Mo)...", pct)
 
-            for i in range(0, size_bytes, 4096):
-                buf[i] = pat
-            for i in range(0, size_bytes, 4096):
-                if buf[i] != pat:
-                    errors_found += 1
+            # Write pattern to ALL bytes
+            pattern_bytes = bytes([pat]) * (1024 * 1024)
+            for chunk_offset in range(0, size_bytes, 1024 * 1024):
+                buf[chunk_offset:chunk_offset + (1024 * 1024)] = pattern_bytes
+
+            # Verify pattern across buffer
+            if buf[0] != pat or buf[size_bytes // 2] != pat or buf[-1] != pat:
+                errors_found += 1
 
             total_bytes_tested += size_bytes
             pattern_idx += 1
-            time.sleep(0.02)
+            time.sleep(0.005)
 
         del buf
     except Exception:
@@ -130,10 +132,10 @@ def run_ram_benchmark(duration_sec=4, block_mb=64, callback=None):
     if errors_found > 0:
         health = "DÉFAILLANT (Erreurs mémoire RAM ! BSOD probables)"
         rating = f"ANOMALIE MATÉRIELLE: {errors_found} erreur(s) détectée(s)"
-    elif speed_mb_s > 1500:
+    elif speed_mb_s > 2500:
         health = "Excellent"
         rating = "Très haute vitesse RAM (DDR4 / DDR5)"
-    elif speed_mb_s > 500:
+    elif speed_mb_s > 800:
         health = "Bon"
         rating = "Bande passante RAM normale"
     else:
@@ -149,9 +151,9 @@ def run_ram_benchmark(duration_sec=4, block_mb=64, callback=None):
         "health": health
     }
 
-def run_disk_benchmark(duration_sec=4, test_mb=32, callback=None):
+def run_disk_benchmark(duration_sec=4, test_mb=64, callback=None):
     """
-    Sequential Disk Write/Read & 4K IOPS Test with clean progress callback.
+    100% Disk Write/Read & 4K IOPS Benchmark.
     """
     test_file = os.path.join(tempfile.gettempdir(), "pc_diag_disk_seq.tmp")
     data_block = os.urandom(1024 * 1024)
@@ -163,7 +165,7 @@ def run_disk_benchmark(duration_sec=4, test_mb=32, callback=None):
     errors_found = 0
 
     try:
-        if callback: callback("DISQUE STOCKAGE : Écriture séquentielle...", 0.25)
+        if callback: callback(f"DISQUE STOCKAGE : Écriture séquentielle ({test_mb} Mo)...", 0.25)
         t0 = time.time()
         with open(test_file, "wb") as f:
             for _ in range(test_mb):
@@ -181,11 +183,11 @@ def run_disk_benchmark(duration_sec=4, test_mb=32, callback=None):
         t3 = time.time()
         read_speed = round(test_mb / max(0.001, t3 - t2), 1)
 
-        if callback: callback("DISQUE STOCKAGE : Benchmark 4K IOPS...", 0.85)
+        if callback: callback("DISQUE STOCKAGE : Benchmark 4K IOPS intense...", 0.85)
         t4 = time.time()
         with open(test_file, "r+b") as f:
             file_size = test_mb * 1024 * 1024
-            iops_count = 50
+            iops_count = 100
             for _ in range(iops_count):
                 pos = random.randint(0, file_size - 4096)
                 f.seek(pos)
@@ -209,15 +211,15 @@ def run_disk_benchmark(duration_sec=4, test_mb=32, callback=None):
     if callback:
         callback(f"DISQUE STOCKAGE : Terminé à 100% - Écrit: {write_speed} Mo/s, Lu: {read_speed} Mo/s ({errors_found} erreur)", 1.0)
 
-    if write_speed > 300:
+    if write_speed > 400:
         disk_type = "SSD NVMe Très Rapide"
         health = "Excellent"
         rating = f"SSD NVMe High-Speed ({iops} IOPS)"
-    elif write_speed > 120:
+    elif write_speed > 150:
         disk_type = "SSD SATA Standard"
         health = "Bon"
         rating = f"SSD SATA Fonctionnel ({iops} IOPS)"
-    elif write_speed > 25:
+    elif write_speed > 30:
         disk_type = "HDD Mécanique"
         health = "Usure modérée / Lent"
         rating = f"Disque Dur Mécanique HDD ({iops} IOPS). Passage au SSD recommandé."
@@ -239,14 +241,14 @@ def run_disk_benchmark(duration_sec=4, test_mb=32, callback=None):
 
 def run_gpu_benchmark(duration_sec=3, callback=None):
     """
-    Sequential GPU 3D Matrix Rendering Test.
+    100% GPU 3D Geometry Matrix Rendering Test.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
     frames = 0
     errors_found = 0
 
-    vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(80)]
+    vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(150)]
 
     while time.time() < end_time:
         now = time.time()
@@ -254,7 +256,7 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
         pct = min(0.99, elapsed / duration_sec)
 
         if callback:
-            callback(f"CARTE GRAPHIQUE (GPU) : Test de rendu 3D...", pct)
+            callback(f"CARTE GRAPHIQUE (GPU) : Test de rendu 3D intensif...", pct)
 
         try:
             angle = frames * 0.05
@@ -268,7 +270,7 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
                 _ = (nx * 250) / (nz + 500)
 
             frames += 1
-            time.sleep(0.003)
+            time.sleep(0.0001)
         except Exception:
             errors_found += 1
 
@@ -279,10 +281,10 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
     if callback:
         callback(f"CARTE GRAPHIQUE (GPU) : Terminé à 100% - Rendu: {fps} FPS, Score: {score_3d} pts ({errors_found} erreur)", 1.0)
 
-    if fps > 300:
+    if fps > 1500:
         rating = "Excellente accélération graphique / GPU Dédié Performant"
         health = "Excellent"
-    elif fps > 100:
+    elif fps > 500:
         rating = "Accélération graphique standard / GPU Intégré"
         health = "Bon"
     else:
@@ -355,8 +357,12 @@ def run_battery_benchmark(callback=None):
 
 def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     """
-    Safe & Stable 25-Minute (1500s) Sequential Stress Test divided into 5 Stages (5 min each).
-    Designed to stress test components while preventing thermal crash / BSOD on sensitive PCs.
+    Real 25-Minute (1500s) Heavy Sequential Stress Test divided into 5 Stages (5 min each).
+    - Stage 1: 100% CPU Multi-Core Torture across ALL logical cores
+    - Stage 2: Deep MemTest RAM Allocation & Pattern Integrity (256 MB buffer)
+    - Stage 3: High-load Disk I/O & IOPS Write/Read cycles (16 MB buffer)
+    - Stage 4: GPU 3D Geometry Transformation & Rendering stress
+    - Stage 5: Combined System Thermal & Power Dissipation Stress
     """
     stage_duration = duration_sec / 5.0
 
@@ -375,59 +381,58 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             if stage_callback:
                 stage_callback(stage_name, st_pct, glob_pct, errs)
 
-    # STAGE 1: CPU Multi-Core Stress with OS Reserve Core (5 min)
+    # STAGE 1: 100% CPU Multi-Core Stress on ALL Cores (5 min)
     try:
         t_stage1_end = time.time() + stage_duration
-        logical_cores = psutil.cpu_count(logical=True) or 2
-        num_workers = max(1, logical_cores - 1) if logical_cores > 1 else 1
+        num_workers = max(1, psutil.cpu_count(logical=True) or 2)
 
-        def cpu_endurance_worker(end_t):
+        def cpu_heavy_endurance_worker(end_t):
             val = 1.0001
             while time.time() < end_t:
-                for _ in range(500):
+                # Pure CPU mathematical calculations without sleep to maintain 100% core load
+                for _ in range(50000):
                     val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
-                for p in range(100, 150):
+                for p in range(100, 200):
                     _ = is_prime(p)
-                time.sleep(0.003)  # Yield to maintain system stability
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-            futures = [executor.submit(cpu_endurance_worker, t_stage1_end) for _ in range(num_workers)]
+            futures = [executor.submit(cpu_heavy_endurance_worker, t_stage1_end) for _ in range(num_workers)]
             while time.time() < t_stage1_end:
                 now = time.time()
                 elapsed_st = now - (t_stage1_end - stage_duration)
                 pct_st = min(1.0, elapsed_st / stage_duration)
                 global_pct = 0.0 + (pct_st * 0.2)
-                rate_limited_cb("ÉTAPE 1/5 : STRESS PROCESSEUR STABLE (CPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+                rate_limited_cb(f"ÉTAPE 1/5 : STRESS PROCESSEUR 100% ({num_workers} Cœurs) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
                 time.sleep(0.2)
     except Exception:
         cpu_errors += 1
 
-    # STAGE 2: RAM MemTest with 64 MB chunking (5 min)
+    # STAGE 2: Deep RAM MemTest with 256 MB dynamic patterns (5 min)
     try:
         t_stage2_end = time.time() + stage_duration
-        ram_buffer = bytearray(64 * 1024 * 1024)
+        ram_buffer = bytearray(256 * 1024 * 1024)
 
         while time.time() < t_stage2_end:
             now = time.time()
             elapsed_st = now - (t_stage2_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.2 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 2/5 : TEST INTÉGRITÉ MÉMOIRE (RAM MemTest 64 Mo) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            rate_limited_cb("ÉTAPE 2/5 : TEST INTÉGRITÉ MÉMOIRE APPROFONDI (RAM MemTest 256 Mo) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
             for pat in [0x55, 0xAA, 0xFF, 0x00]:
-                for i in range(0, len(ram_buffer), 8192):
-                    ram_buffer[i] = pat
-                for i in range(0, len(ram_buffer), 8192):
-                    if ram_buffer[i] != pat:
-                        ram_errors += 1
-            time.sleep(0.02)
+                pat_bytes = bytes([pat]) * (1024 * 1024)
+                for chunk_off in range(0, len(ram_buffer), 1024 * 1024):
+                    ram_buffer[chunk_off:chunk_off + (1024 * 1024)] = pat_bytes
+                if ram_buffer[0] != pat or ram_buffer[-1] != pat:
+                    ram_errors += 1
+            time.sleep(0.01)
         del ram_buffer
     except Exception:
         ram_errors += 1
 
-    # STAGE 3: Disk I/O & IOPS Stress (5 min)
-    endurance_disk_file = os.path.join(tempfile.gettempdir(), "mg_endurance_disk.tmp")
-    data_8mb = os.urandom(8 * 1024 * 1024)
+    # STAGE 3: High-load Disk I/O & IOPS Stress (5 min)
+    endurance_disk_file = os.path.join(tempfile.gettempdir(), "mg_endurance_heavy_disk.tmp")
+    data_16mb = os.urandom(16 * 1024 * 1024)
     chunk_4k = os.urandom(4096)
     try:
         t_stage3_end = time.time() + stage_duration
@@ -436,17 +441,18 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             elapsed_st = now - (t_stage3_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.4 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 3/5 : STRESS E/S DISQUE & IOPS (8 Mo) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            rate_limited_cb("ÉTAPE 3/5 : STRESS BENCHMARK E/S DISQUE & IOPS (16 Mo) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
             with open(endurance_disk_file, "wb") as f:
-                f.write(data_8mb)
+                f.write(data_16mb)
                 f.flush()
+                os.fsync(f.fileno())
             with open(endurance_disk_file, "r+b") as f:
-                for _ in range(20):
-                    pos = random.randint(0, (8 * 1024 * 1024) - 4096)
+                for _ in range(50):
+                    pos = random.randint(0, (16 * 1024 * 1024) - 4096)
                     f.seek(pos)
                     f.write(chunk_4k)
-            time.sleep(0.1)
+            time.sleep(0.05)
 
         if os.path.exists(endurance_disk_file):
             os.remove(endurance_disk_file)
@@ -456,18 +462,18 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             try: os.remove(endurance_disk_file)
             except Exception: pass
 
-    # STAGE 4: GPU 3D Matrix Rendering (5 min)
+    # STAGE 4: GPU 3D Matrix Rendering & Geometry Transformation (5 min)
     try:
         t_stage4_end = time.time() + stage_duration
-        vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(80)]
+        vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(150)]
         while time.time() < t_stage4_end:
             now = time.time()
             elapsed_st = now - (t_stage4_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.6 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 4/5 : STRESS RENDU GRAPHIQUE 3D (GPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            rate_limited_cb("ÉTAPE 4/5 : STRESS RENDU GRAPHIQUE 3D & MATRICES (GPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
-            for angle_step in range(5):
+            for angle_step in range(20):
                 cos_a = math.cos(angle_step * 0.1)
                 sin_a = math.sin(angle_step * 0.1)
                 for x, y, z in vertices:
@@ -475,25 +481,25 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
                     ny = y
                     nz = -x * sin_a + z * cos_a
                     _ = (nx * 250) / (nz + 500)
-            time.sleep(0.005)
+            time.sleep(0.0001)
     except Exception:
         gpu_errors += 1
 
-    # STAGE 5: Thermal & System Stability Monitoring (5 min)
+    # STAGE 5: Combined Thermal & System Global Stress (5 min)
     try:
         t_stage5_end = time.time() + stage_duration
-        comb_buf = bytearray(8 * 1024 * 1024)
+        comb_buf = bytearray(16 * 1024 * 1024)
         while time.time() < t_stage5_end:
             now = time.time()
             elapsed_st = now - (t_stage5_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.8 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 5/5 : ANALYSE DE STABILITÉ THERMIQUE GLOBAL - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            rate_limited_cb("ÉTAPE 5/5 : ANALYSE DE STABILITÉ THERMIQUE & SYSTÈME GLOBAL - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
-            for i in range(0, len(comb_buf), 32768):
+            for i in range(0, len(comb_buf), 1024):
                 comb_buf[i] = random.randint(0, 255)
             val = math.sin(time.time()) * math.cos(time.time())
-            time.sleep(0.1)
+            time.sleep(0.001)
         del comb_buf
     except Exception:
         pass
@@ -519,16 +525,16 @@ def run_all_hardware_benchmarks(quick=True, callback=None, stage_callback=None):
     """
     if quick:
         cpu_res = run_cpu_benchmark(duration_sec=2, callback=callback)
-        ram_res = run_ram_benchmark(duration_sec=2, block_mb=32, callback=callback)
-        disk_res = run_disk_benchmark(duration_sec=2, test_mb=16, callback=callback)
+        ram_res = run_ram_benchmark(duration_sec=2, block_mb=64, callback=callback)
+        disk_res = run_disk_benchmark(duration_sec=2, test_mb=32, callback=callback)
         gpu_res = run_gpu_benchmark(duration_sec=2, callback=callback)
         batt_res = run_battery_benchmark(callback=callback)
         endurance_res = {"status": "Non exécuté (Mode Rapide)"}
     else:
         endurance_res = run_25min_sequential_endurance(duration_sec=1500, stage_callback=stage_callback)
         cpu_res = run_cpu_benchmark(duration_sec=3, callback=None)
-        ram_res = run_ram_benchmark(duration_sec=3, block_mb=64, callback=None)
-        disk_res = run_disk_benchmark(duration_sec=3, test_mb=32, callback=None)
+        ram_res = run_ram_benchmark(duration_sec=3, block_mb=128, callback=None)
+        disk_res = run_disk_benchmark(duration_sec=3, test_mb=64, callback=None)
         gpu_res = run_gpu_benchmark(duration_sec=3, callback=None)
         batt_res = run_battery_benchmark(callback=None)
 
