@@ -4,78 +4,94 @@ import system_hardware_benchmarks
 
 class TestsView(ctk.CTkFrame):
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__(parent, fg_color="transparent")
 
         self.grid_columnconfigure(0, weight=1)
 
-        title = ctk.CTkLabel(
-            self,
-            text="Mister Genius SA - Benchmarks & Test de Piétinement 25 Min",
-            font=ctk.CTkFont(size=18, weight="bold"),
+        # TOP BANNER CARD
+        banner_card = ctk.CTkFrame(self, fg_color="#111827", corner_radius=12, border_width=1, border_color="#1F2937")
+        banner_card.grid(row=0, column=0, padx=0, pady=(0, 10), sticky="ew")
+
+        banner_title = ctk.CTkLabel(
+            banner_card,
+            text="⚡  BENCHMARKS MATÉRIELS & TEST DE PIÉTINEMENT 25 MIN",
+            font=ctk.CTkFont(size=14, weight="bold"),
             text_color="#0099DA"
         )
-        title.grid(row=0, column=0, padx=20, pady=(15, 2), sticky="w")
+        banner_title.pack(anchor="w", padx=20, pady=(12, 2))
 
-        subtitle = ctk.CTkLabel(
-            self,
-            text="Tests séquentiels composant par composant (CPU -> RAM -> Disque -> GPU -> Batterie)",
-            font=ctk.CTkFont(size=12),
-            text_color="#64748B"
+        banner_desc = ctk.CTkLabel(
+            banner_card,
+            text="Tests séquentiels composant par composant (CPU Multi-Cœurs -> RAM MemTest -> Disque IOPS -> GPU 3D -> Batterie)",
+            font=ctk.CTkFont(size=11),
+            text_color="#94A3B8"
         )
-        subtitle.grid(row=1, column=0, padx=20, pady=(0, 10), sticky="w")
+        banner_desc.pack(anchor="w", padx=20, pady=(0, 12))
 
-        # Action Buttons bar
+        # ACTION BUTTONS BAR
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=2, column=0, padx=20, pady=5, sticky="ew")
+        btn_frame.grid(row=1, column=0, padx=0, pady=(0, 10), sticky="ew")
 
         self.btn_run_fast = ctk.CTkButton(
             btn_frame,
-            text="Test Séquentiel Rapide (30s)",
+            text="⚡  Test Séquentiel Rapide (30s)",
             fg_color="#334155",
             hover_color="#475569",
+            height=38,
+            corner_radius=8,
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=lambda: self.start_benchmark_thread(quick=True)
         )
         self.btn_run_fast.pack(side="left", padx=(0, 10))
 
         self.btn_run_deep = ctk.CTkButton(
             btn_frame,
-            text="TEST SÉQUENTIEL DE PIÉTINEMENT 25 MIN (5 x 5 min)",
+            text="🔥  TEST DE PIÉTINEMENT 25 MINUTES (5 x 5 min)",
             fg_color="#0099DA",
             hover_color="#0072CE",
+            height=38,
+            corner_radius=8,
             font=ctk.CTkFont(size=12, weight="bold"),
             command=lambda: self.start_benchmark_thread(quick=False)
         )
         self.btn_run_deep.pack(side="left")
 
-        # Component Progress & Error Display
-        prog_frame = ctk.CTkFrame(self, fg_color="#0F172A", corner_radius=10)
-        prog_frame.grid(row=3, column=0, padx=20, pady=10, sticky="ew")
-        prog_frame.grid_columnconfigure(0, weight=1)
+        # LIVE PROGRESS & STATUS CARD
+        prog_card = ctk.CTkFrame(self, fg_color="#0F172A", corner_radius=12, border_width=1, border_color="#1E293B")
+        prog_card.grid(row=2, column=0, padx=0, pady=(0, 10), sticky="ew")
+        prog_card.grid_columnconfigure(0, weight=1)
 
         self.lbl_stage = ctk.CTkLabel(
-            prog_frame,
+            prog_card,
             text="SÉLECTIONNEZ UN TEST POUR DÉMARRER",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ctk.CTkFont(size=12, weight="bold"),
             text_color="#0099DA"
         )
-        self.lbl_stage.grid(row=0, column=0, padx=15, pady=(10, 2), sticky="w")
+        self.lbl_stage.grid(row=0, column=0, padx=20, pady=(12, 4), sticky="w")
 
-        self.progress_bar = ctk.CTkProgressBar(prog_frame, progress_color="#0099DA", height=14)
+        self.progress_bar = ctk.CTkProgressBar(prog_card, progress_color="#0099DA", height=14)
         self.progress_bar.set(0)
-        self.progress_bar.grid(row=1, column=0, padx=15, pady=5, sticky="ew")
+        self.progress_bar.grid(row=1, column=0, padx=20, pady=4, sticky="ew")
 
         self.lbl_errors_count = ctk.CTkLabel(
-            prog_frame,
-            text="Erreurs Détectées : 0",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            prog_card,
+            text="ANOMALIES MATÉRIELLES : 0 (STABLE)",
+            font=ctk.CTkFont(size=11, weight="bold"),
             text_color="#10B981"
         )
-        self.lbl_errors_count.grid(row=2, column=0, padx=15, pady=(2, 10), sticky="w")
+        self.lbl_errors_count.grid(row=2, column=0, padx=20, pady=(4, 12), sticky="w")
 
-        # Terminal Log Output
-        self.textbox_log = ctk.CTkTextbox(self, height=290, font=ctk.CTkFont(family="Courier", size=11))
+        # TERMINAL LOG CONSOLE
+        self.textbox_log = ctk.CTkTextbox(
+            self,
+            height=310,
+            font=ctk.CTkFont(family="Courier", size=11),
+            fg_color="#0B0F17",
+            border_width=1,
+            border_color="#1F2937"
+        )
         self.textbox_log.insert("1.0", "Exécution séquentielle : chaque composant est testé individuellement de 0% à 100%.\n")
-        self.textbox_log.grid(row=4, column=0, padx=20, pady=5, sticky="nsew")
+        self.textbox_log.grid(row=3, column=0, padx=0, pady=0, sticky="nsew")
 
         self.test_results = {}
         self.last_log_message = ""
@@ -92,9 +108,9 @@ class TestsView(ctk.CTkFrame):
         self.progress_bar.set(global_pct)
         self.lbl_stage.configure(text=f"[{int(global_pct*100)}%] {stage_name} ({int(stage_pct*100)}%)")
         if errors_count > 0:
-            self.lbl_errors_count.configure(text=f"Erreurs Détectées : {errors_count} (ANOMALIE)", text_color="#EF4444")
+            self.lbl_errors_count.configure(text=f"ANOMALIES MATÉRIELLES : {errors_count} (ERREURS)", text_color="#EF4444")
         else:
-            self.lbl_errors_count.configure(text="Erreurs Détectées : 0 (STABLE)", text_color="#10B981")
+            self.lbl_errors_count.configure(text="ANOMALIES MATÉRIELLES : 0 (STABLE)", text_color="#10B981")
 
         if self.last_log_message != stage_name or global_pct >= 1.0:
             self.last_log_message = stage_name
@@ -106,7 +122,7 @@ class TestsView(ctk.CTkFrame):
         self.btn_run_deep.configure(state="disabled")
         self.progress_bar.set(0)
         self.textbox_log.delete("1.0", "end")
-        self.lbl_errors_count.configure(text="Erreurs Détectées : 0", text_color="#10B981")
+        self.lbl_errors_count.configure(text="ANOMALIES MATÉRIELLES : 0 (STABLE)", text_color="#10B981")
         self.last_log_message = ""
 
         mode_str = "RAPIDE SÉQUENTIEL" if quick else "TEST SÉQUENTIEL 25 MINUTES (5 X 5 MIN)"
