@@ -97,25 +97,31 @@ class TestsView(ctk.CTkFrame):
         self.last_log_message = ""
 
     def update_single_progress(self, message, pct):
-        self.progress_bar.set(pct)
-        self.lbl_stage.configure(text=f"[{int(pct*100)}%] {message}")
-        if pct >= 1.0 or self.last_log_message != message:
-            self.last_log_message = message
-            self.textbox_log.insert("end", f"[{int(pct*100)}%] {message}\n")
-            self.textbox_log.see("end")
+        try:
+            self.progress_bar.set(pct)
+            self.lbl_stage.configure(text=f"[{int(pct*100)}%] {message}")
+            if pct >= 1.0 or self.last_log_message != message:
+                self.last_log_message = message
+                self.textbox_log.insert("end", f"[{int(pct*100)}%] {message}\n")
+                self.textbox_log.see("end")
+        except Exception:
+            pass
 
     def update_stage_progress(self, stage_name, stage_pct, global_pct, errors_count):
-        self.progress_bar.set(global_pct)
-        self.lbl_stage.configure(text=f"[{int(global_pct*100)}%] {stage_name} ({int(stage_pct*100)}%)")
-        if errors_count > 0:
-            self.lbl_errors_count.configure(text=f"ANOMALIES MATÉRIELLES : {errors_count} (ERREURS)", text_color="#EF4444")
-        else:
-            self.lbl_errors_count.configure(text="ANOMALIES MATÉRIELLES : 0 (STABLE)", text_color="#10B981")
+        try:
+            self.progress_bar.set(global_pct)
+            self.lbl_stage.configure(text=f"[{int(global_pct*100)}%] {stage_name} ({int(stage_pct*100)}%)")
+            if errors_count > 0:
+                self.lbl_errors_count.configure(text=f"ANOMALIES MATÉRIELLES : {errors_count} (ERREURS)", text_color="#EF4444")
+            else:
+                self.lbl_errors_count.configure(text="ANOMALIES MATÉRIELLES : 0 (STABLE)", text_color="#10B981")
 
-        if self.last_log_message != stage_name or global_pct >= 1.0:
-            self.last_log_message = stage_name
-            self.textbox_log.insert("end", f"[{int(global_pct*100)}%] {stage_name}\n")
-            self.textbox_log.see("end")
+            if self.last_log_message != stage_name or global_pct >= 1.0:
+                self.last_log_message = stage_name
+                self.textbox_log.insert("end", f"[{int(global_pct*100)}%] {stage_name}\n")
+                self.textbox_log.see("end")
+        except Exception:
+            pass
 
     def start_benchmark_thread(self, quick=True):
         self.btn_run_fast.configure(state="disabled")
@@ -147,11 +153,14 @@ class TestsView(ctk.CTkFrame):
             self.after(0, lambda: self.textbox_log.insert("end", f"\nANOMALIE EN COURS DE TEST : {str(err)}\n"))
         finally:
             def finish_ui():
-                self.progress_bar.set(1.0)
-                self.lbl_stage.configure(text="TESTS SÉQUENTIELS TERMINÉS AVEC SUCCÈS !")
-                self.textbox_log.insert("end", "\n=== TOUS LES TESTS MATÉRIELS ONT ÉTÉ EXÉCUTÉS AVEC SUCCÈS ===")
-                self.btn_run_fast.configure(state="normal")
-                self.btn_run_deep.configure(state="normal")
+                try:
+                    self.progress_bar.set(1.0)
+                    self.lbl_stage.configure(text="TESTS SÉQUENTIELS TERMINÉS AVEC SUCCÈS !")
+                    self.textbox_log.insert("end", "\n=== TOUS LES TESTS MATÉRIELS ONT ÉTÉ EXÉCUTÉS AVEC SUCCÈS ===")
+                    self.btn_run_fast.configure(state="normal")
+                    self.btn_run_deep.configure(state="normal")
+                except Exception:
+                    pass
 
             self.after(0, finish_ui)
 
