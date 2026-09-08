@@ -10,6 +10,8 @@ try:
 except Exception:
     pass
 
+_CACHED_PC_SPECS = None
+
 def _is_invalid_serial(s):
     if not s:
         return True
@@ -35,9 +37,12 @@ def get_fallback(val, default_text="Non disponible"):
 
 def get_auto_pc_specs():
     """
-    Automatically detects PC Brand (Manufacturer), Model, and Serial Number.
-    Queries BIOS serial, Motherboard serial, System UUID, and Disk serial to bypass 'To be filled by O.E.M.' strings.
+    Returns cached PC Brand (Manufacturer), Model, and Serial Number to avoid blocking subprocess calls on every refresh.
     """
+    global _CACHED_PC_SPECS
+    if _CACHED_PC_SPECS is not None:
+        return _CACHED_PC_SPECS
+
     specs = {
         "brand": "Inconnu",
         "model": "Inconnu",
@@ -47,63 +52,47 @@ def get_auto_pc_specs():
     sys_platform = platform.system()
 
     if sys_platform == "Windows":
-        # 1. PC Brand / Manufacturer
+        # Windows WMI / PowerShell queries
         try:
-            cmd_brand = 'powershell "(Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer"'
-            brand_out = subprocess.check_output(cmd_brand, shell=True, timeout=2).decode().strip()
+            cmd_brand = 'powershell -NoProfile -Command "(Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer"'
+            brand_out = subprocess.check_output(cmd_brand, shell=True, timeout=1.5).decode().strip()
             if not _is_invalid_serial(brand_out):
                 specs["brand"] = brand_out
         except Exception:
             pass
 
-        # 2. PC Model
         try:
-            cmd_model = 'powershell "(Get-CimInstance -ClassName Win32_ComputerSystem).Model"'
-            model_out = subprocess.check_output(cmd_model, shell=True, timeout=2).decode().strip()
+            cmd_model = 'powershell -NoProfile -Command "(Get-CimInstance -ClassName Win32_ComputerSystem).Model"'
+            model_out = subprocess.check_output(cmd_model, shell=True, timeout=1.5).decode().strip()
             if not _is_invalid_serial(model_out):
                 specs["model"] = model_out
         except Exception:
             pass
 
-        # 3. Serial Number Fallback Chain: BIOS -> Motherboard -> UUID -> Primary Disk Serial
         candidate_serial = ""
-
-        # Option A: Win32_Bios
         try:
-            cmd_bios = 'powershell "(Get-CimInstance -ClassName Win32_Bios).SerialNumber"'
-            out_bios = subprocess.check_output(cmd_bios, shell=True, timeout=2).decode().strip()
+            cmd_bios = 'powershell -NoProfile -Command "(Get-CimInstance -ClassName Win32_Bios).SerialNumber"'
+            out_bios = subprocess.check_output(cmd_bios, shell=True, timeout=1.5).decode().strip()
             if not _is_invalid_serial(out_bios):
                 candidate_serial = out_bios
         except Exception:
             pass
 
-        # Option B: Win32_BaseBoard (Motherboard)
         if not candidate_serial:
             try:
-                cmd_mb = 'powershell "(Get-CimInstance -ClassName Win32_BaseBoard).SerialNumber"'
-                out_mb = subprocess.check_output(cmd_mb, shell=True, timeout=2).decode().strip()
+                cmd_mb = 'powershell -NoProfile -Command "(Get-CimInstance -ClassName Win32_BaseBoard).SerialNumber"'
+                out_mb = subprocess.check_output(cmd_mb, shell=True, timeout=1.5).decode().strip()
                 if not _is_invalid_serial(out_mb):
                     candidate_serial = out_mb
             except Exception:
                 pass
 
-        # Option C: Win32_ComputerSystemProduct UUID
         if not candidate_serial:
             try:
-                cmd_uuid = 'powershell "(Get-CimInstance -ClassName Win32_ComputerSystemProduct).UUID"'
-                out_uuid = subprocess.check_output(cmd_uuid, shell=True, timeout=2).decode().strip()
+                cmd_uuid = 'powershell -NoProfile -Command "(Get-CimInstance -ClassName Win32_ComputerSystemProduct).UUID"'
+                out_uuid = subprocess.check_output(cmd_uuid, shell=True, timeout=1.5).decode().strip()
                 if not _is_invalid_serial(out_uuid) and len(out_uuid) > 8:
                     candidate_serial = f"UUID-{out_uuid[:13]}"
-            except Exception:
-                pass
-
-        # Option D: Primary Disk Drive Serial
-        if not candidate_serial:
-            try:
-                cmd_disk = 'powershell "(Get-CimInstance -ClassName Win32_DiskDrive)[0].SerialNumber"'
-                out_disk = subprocess.check_output(cmd_disk, shell=True, timeout=2).decode().strip()
-                if not _is_invalid_serial(out_disk):
-                    candidate_serial = out_disk
             except Exception:
                 pass
 
@@ -111,7 +100,6 @@ def get_auto_pc_specs():
             specs["serial"] = candidate_serial
 
     elif sys_platform == "Linux":
-        # Linux DMI sysfs files
         for path, key in [
             ("/sys/class/dmi/id/sys_vendor", "brand"),
             ("/sys/class/dmi/id/product_name", "model"),
@@ -131,11 +119,10 @@ def get_auto_pc_specs():
         try:
             specs["brand"] = "Apple"
             cmd_model = "sysctl -n hw.model"
-            specs["model"] = subprocess.check_output(cmd_model, shell=True, timeout=2).decode().strip()
+            specs["model"] = subprocess.check_output(cmd_model, shell=True, timeout=1).decode().strip()
         except Exception:
             pass
 
-    # Final fallback cleaning
     if specs["brand"] == "Inconnu" or not specs["brand"]:
         specs["brand"] = platform.system()
     if specs["model"] == "Inconnu" or not specs["model"]:
@@ -143,12 +130,13 @@ def get_auto_pc_specs():
     if _is_invalid_serial(specs["serial"]) or specs["serial"] == "Inconnu":
         specs["serial"] = f"SN-{hash(platform.node()) & 0xFFFFFF:06X}"
 
-    return specs
+    _CACHED_PC_SPECS = specs
+    return _CACHED_PC_SPECS
 
 def get_live_temperatures():
     """
-    Returns real-time temperature dictionary for CPU, GPU, Disk, and System.
-    Uses psutil sensors, WMI, PowerShell queries, and dynamic baseline estimation when hardware ACPI sensors are unreadable.
+    Fast, non-blocking live temperature query.
+    Uses psutil sensors first and fast dynamic estimation to prevent GUI stutter.
     """
     results = {
         "cpu_temp": "N/A",
@@ -159,11 +147,11 @@ def get_live_temperatures():
         "disk_temp_val": None,
         "sys_temp": "N/A",
         "sys_temp_val": None,
-        "status_color": "#10B981"  # Default Green
+        "status_color": "#10B981"
     }
 
     try:
-        # 1. Check psutil.sensors_temperatures()
+        # 1. Fast psutil.sensors_temperatures() check
         if hasattr(psutil, "sensors_temperatures"):
             temps = psutil.sensors_temperatures()
             if temps:
@@ -196,22 +184,8 @@ def get_live_temperatures():
                     results["gpu_temp"] = f"{max_gpu_val} °C"
                     results["gpu_temp_val"] = max_gpu_val
 
-        # 2. Windows WMI MSAcpi_ThermalZoneTemperature fallback
-        if results["cpu_temp_val"] is None and platform.system() == "Windows":
-            try:
-                cmd = 'powershell "Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature 2>$null | Select-Object -ExpandProperty CurrentTemperature"'
-                out = subprocess.check_output(cmd, shell=True, timeout=1).decode().strip()
-                if out and out.isdigit():
-                    raw_k = float(out)
-                    celsius = round((raw_k / 10.0) - 273.15, 1)
-                    if 15.0 <= celsius <= 115.0:
-                        results["cpu_temp"] = f"{celsius} °C"
-                        results["cpu_temp_val"] = celsius
-            except Exception:
-                pass
-
-        # 3. Dynamic Thermal Baseline Estimation if hardware ACPI sensors are restricted
-        cpu_load = psutil.cpu_percent(interval=0.05) or 5.0
+        # 2. Fast non-blocking CPU load thermal estimation
+        cpu_load = psutil.cpu_percent(interval=None) or 5.0
         if results["cpu_temp_val"] is None:
             est_cpu = round(38.0 + (cpu_load * 0.38), 1)
             results["cpu_temp"] = f"{est_cpu} °C (Est.)"
@@ -227,14 +201,13 @@ def get_live_temperatures():
             results["disk_temp"] = f"{est_disk} °C (Est.)"
             results["disk_temp_val"] = est_disk
 
-        # Color coding based on highest temp
         highest_val = max([v for v in [results["cpu_temp_val"], results["gpu_temp_val"], results["disk_temp_val"]] if v is not None] or [0])
         if highest_val > 80:
-            results["status_color"] = "#EF4444"  # Red
+            results["status_color"] = "#EF4444"
         elif highest_val > 65:
-            results["status_color"] = "#F59E0B"  # Yellow
+            results["status_color"] = "#F59E0B"
         else:
-            results["status_color"] = "#10B981"  # Green
+            results["status_color"] = "#10B981"
 
     except Exception:
         pass
@@ -256,12 +229,11 @@ def get_system_diagnostics():
         if freq:
             current_speed = f"{round(freq.current / 1000, 2)} GHz"
             max_speed = f"{round(freq.max / 1000, 2)} GHz" if freq.max else "Inconnu"
-            min_speed = f"{round(freq.min / 1000, 2)} GHz" if freq.min else "Inconnu"
             freq_str = f"{current_speed} (Max: {max_speed})"
         else:
             freq_str = "Non disponible"
 
-        cpu_usage_num = psutil.cpu_percent(interval=0.1)
+        cpu_usage_num = psutil.cpu_percent(interval=None)
         cpu_usage = f"{round(cpu_usage_num, 1)}%"
         temps_str = live_temps["cpu_temp"]
 

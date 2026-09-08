@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
@@ -146,15 +147,31 @@ class DiagView(ctk.CTkFrame):
         )
         self.textbox_diag.grid(row=4, column=0, padx=0, pady=0, sticky="nsew")
 
+        self.is_refreshing = False
         self.refresh_diag()
-        self._start_live_auto_refresh()
+        self._schedule_next_auto_refresh()
 
-    def _start_live_auto_refresh(self):
-        """
-        Auto-refreshes all live metrics (temperatures, CPU %, RAM Go / %, Disk & Battery) every 2 seconds.
-        """
+    def _schedule_next_auto_refresh(self):
+        self.after(2000, self.async_auto_refresh)
+
+    def async_auto_refresh(self):
+        if not self.is_refreshing:
+            thread = threading.Thread(target=self._worker_bg_sampling, daemon=True)
+            thread.start()
+        self._schedule_next_auto_refresh()
+
+    def _worker_bg_sampling(self):
+        self.is_refreshing = True
         try:
             diag_data = system_diag.get_system_diagnostics()
+            self.after(0, self._apply_live_data, diag_data)
+        except Exception:
+            pass
+        finally:
+            self.is_refreshing = False
+
+    def _apply_live_data(self, diag_data):
+        try:
             self.auto_data = diag_data
 
             live_temps = diag_data.get("liveTemperatures", {})
@@ -175,7 +192,6 @@ class DiagView(ctk.CTkFrame):
             else:
                 self.lbl_thermal_status.configure(text="● NOMINALE (<65°C)", text_color="#10B981")
 
-            # Update Stat Cards Live
             cpu = diag_data.get("cpu", {})
             ram = diag_data.get("ram", {})
             disks = diag_data.get("disks", [])
@@ -193,11 +209,8 @@ class DiagView(ctk.CTkFrame):
 
             self.card_batt["line1"].configure(text=f"Niveau: {batt.get('percent', 'N/A')}")
             self.card_batt["line2"].configure(text=f"Santé: {batt.get('health', 'N/A')}")
-
         except Exception:
             pass
-        finally:
-            self.after(2000, self._start_live_auto_refresh)
 
     def launch_sys_tool(self, cmd):
         try:
@@ -246,29 +259,21 @@ class DiagView(ctk.CTkFrame):
         return {"card": card, "line1": lbl_1, "line2": lbl_2}
 
     def refresh_diag(self):
-        diag_data = system_diag.get_system_diagnostics()
-        self.auto_data = diag_data
+        def _bg():
+            diag_data = system_diag.get_system_diagnostics()
+            self.after(0, self._render_full_diag_text, diag_data)
+
+        thread = threading.Thread(target=_bg, daemon=True)
+        thread.start()
+
+    def _render_full_diag_text(self, diag_data):
+        self._apply_live_data(diag_data)
 
         cpu = diag_data.get("cpu", {})
         ram = diag_data.get("ram", {})
         disks = diag_data.get("disks", [])
         batt = diag_data.get("battery", {})
 
-        # Update Stat Badges
-        self.card_cpu["line1"].configure(text=f"Charge: {cpu.get('usage', 'N/A')}")
-        self.card_cpu["line2"].configure(text=f"Cœurs: {cpu.get('cores', 'N/A')} ({cpu.get('freq', 'N/A')})")
-
-        self.card_ram["line1"].configure(text=f"Total: {ram.get('total', 'N/A')}")
-        self.card_ram["line2"].configure(text=f"Utilisé: {ram.get('used', 'N/A')} ({ram.get('usedPercent', 'N/A')})")
-
-        main_disk = disks[0] if disks else {}
-        self.card_disk["line1"].configure(text=f"Libre: {main_disk.get('free', 'N/A')}")
-        self.card_disk["line2"].configure(text=f"État: {main_disk.get('healthStatus', 'N/A')}")
-
-        self.card_batt["line1"].configure(text=f"Niveau: {batt.get('percent', 'N/A')}")
-        self.card_batt["line2"].configure(text=f"Santé: {batt.get('health', 'N/A')}")
-
-        # Formatted Output
         formatted_text = f"=== MISTER GENIUS SA • DÉTAILS DIAGNOSTIC AUTOMATIQUE ({diag_data['timestamp']}) ===\n\n"
 
         formatted_text += f"[PROCESSEUR (CPU)]\n"
