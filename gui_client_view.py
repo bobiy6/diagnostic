@@ -1,5 +1,6 @@
 import customtkinter as ctk
 import datetime
+import system_diag
 
 class ClientView(ctk.CTkFrame):
     def __init__(self, parent):
@@ -7,6 +8,9 @@ class ClientView(ctk.CTkFrame):
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
+
+        # Auto-detect PC specs (Brand, Model, Serial Number)
+        auto_specs = system_diag.get_auto_pc_specs()
 
         # CARD 1: INFORMATIONS INTERVENTION
         card_intervention = ctk.CTkFrame(self, fg_color="#111827", corner_radius=12, border_width=1, border_color="#1F2937")
@@ -27,8 +31,8 @@ class ClientView(ctk.CTkFrame):
         self.entry_client_name.insert(0, "Dupont Informatique")
         self.entry_client_name.grid(row=1, column=1, padx=20, pady=8, sticky="ew")
 
-        # Date
-        ctk.CTkLabel(card_intervention, text="Date d'intervention :", font=ctk.CTkFont(size=12, weight="bold")).grid(row=2, column=0, padx=20, pady=8, sticky="w")
+        # Date d'intervention (Auto)
+        ctk.CTkLabel(card_intervention, text="Date d'intervention (Auto) :", font=ctk.CTkFont(size=12, weight="bold")).grid(row=2, column=0, padx=20, pady=8, sticky="w")
         self.entry_date = ctk.CTkEntry(card_intervention, border_color="#0099DA", height=36)
         self.entry_date.insert(0, datetime.datetime.now().strftime("%Y-%m-%d"))
         self.entry_date.grid(row=2, column=1, padx=20, pady=8, sticky="ew")
@@ -58,28 +62,28 @@ class ClientView(ctk.CTkFrame):
 
         header_hw = ctk.CTkLabel(
             card_hardware,
-            text="💻  SPÉCIFICATIONS PC CLIENT",
+            text="💻  SPÉCIFICATIONS PC CLIENT (DÉTECTÉES AUTO)",
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color="#0099DA"
         )
         header_hw.grid(row=0, column=0, columnspan=2, padx=20, pady=(15, 10), sticky="w")
 
-        # Marque PC
-        ctk.CTkLabel(card_hardware, text="Marque du PC :", font=ctk.CTkFont(size=12, weight="bold")).grid(row=1, column=0, padx=20, pady=8, sticky="w")
-        self.entry_pc_brand = ctk.CTkEntry(card_hardware, placeholder_text="ex. Asus, Lenovo, HP...", border_color="#0099DA", height=36)
-        self.entry_pc_brand.insert(0, "Asus")
+        # Marque PC (Auto)
+        ctk.CTkLabel(card_hardware, text="Marque du PC (Auto) :", font=ctk.CTkFont(size=12, weight="bold")).grid(row=1, column=0, padx=20, pady=8, sticky="w")
+        self.entry_pc_brand = ctk.CTkEntry(card_hardware, placeholder_text="Marque auto...", border_color="#0099DA", height=36)
+        self.entry_pc_brand.insert(0, auto_specs.get("brand", ""))
         self.entry_pc_brand.grid(row=1, column=1, padx=20, pady=8, sticky="ew")
 
-        # Modèle PC
-        ctk.CTkLabel(card_hardware, text="Modèle du PC :", font=ctk.CTkFont(size=12, weight="bold")).grid(row=2, column=0, padx=20, pady=8, sticky="w")
-        self.entry_pc_model = ctk.CTkEntry(card_hardware, placeholder_text="ex. ZenBook 15 / ThinkPad X1", border_color="#0099DA", height=36)
-        self.entry_pc_model.insert(0, "ZenBook Pro 15")
+        # Modèle PC (Auto)
+        ctk.CTkLabel(card_hardware, text="Modèle du PC (Auto) :", font=ctk.CTkFont(size=12, weight="bold")).grid(row=2, column=0, padx=20, pady=8, sticky="w")
+        self.entry_pc_model = ctk.CTkEntry(card_hardware, placeholder_text="Modèle auto...", border_color="#0099DA", height=36)
+        self.entry_pc_model.insert(0, auto_specs.get("model", ""))
         self.entry_pc_model.grid(row=2, column=1, padx=20, pady=8, sticky="ew")
 
-        # N° de Série
-        ctk.CTkLabel(card_hardware, text="N° de Série :", font=ctk.CTkFont(size=12, weight="bold")).grid(row=3, column=0, padx=20, pady=8, sticky="w")
-        self.entry_serial = ctk.CTkEntry(card_hardware, placeholder_text="ex. SN-883920-AS", border_color="#0099DA", height=36)
-        self.entry_serial.insert(0, "SN-883920-AS")
+        # N° de Série (Auto)
+        ctk.CTkLabel(card_hardware, text="N° de Série (Auto) :", font=ctk.CTkFont(size=12, weight="bold")).grid(row=3, column=0, padx=20, pady=8, sticky="w")
+        self.entry_serial = ctk.CTkEntry(card_hardware, placeholder_text="Série auto...", border_color="#0099DA", height=36)
+        self.entry_serial.insert(0, auto_specs.get("serial", ""))
         self.entry_serial.grid(row=3, column=1, padx=20, pady=8, sticky="ew")
 
         # Motif
@@ -94,7 +98,7 @@ class ClientView(ctk.CTkFrame):
 
         lbl_notice = ctk.CTkLabel(
             card_notice,
-            text="🔒  RAPPEL PROTOCOLE : Les données personnelles (adresse, téléphone, email) ne sont pas stockées pour garantir la confidentialité client conforme RGPD.",
+            text="🔒  RAPPEL PROTOCOLE : La date, la marque, le modèle et le numéro de série du PC sont détectés automatiquement. Les données personnelles ne sont pas stockées.",
             font=ctk.CTkFont(size=11),
             text_color="#94A3B8"
         )
@@ -113,9 +117,19 @@ class ClientView(ctk.CTkFrame):
         }
 
     def reset_data(self):
+        auto_specs = system_diag.get_auto_pc_specs()
         self.entry_client_name.delete(0, "end")
+        self.entry_date.delete(0, "end")
+        self.entry_date.insert(0, datetime.datetime.now().strftime("%Y-%m-%d"))
         self.entry_technician.delete(0, "end")
+
         self.entry_pc_brand.delete(0, "end")
+        self.entry_pc_brand.insert(0, auto_specs.get("brand", ""))
+
         self.entry_pc_model.delete(0, "end")
+        self.entry_pc_model.insert(0, auto_specs.get("model", ""))
+
         self.entry_serial.delete(0, "end")
+        self.entry_serial.insert(0, auto_specs.get("serial", ""))
+
         self.textbox_reason.delete("1.0", "end")

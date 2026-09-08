@@ -11,9 +11,82 @@ except Exception:
     pass
 
 def get_fallback(val, default_text="Non disponible"):
-    if val is None or val == "" or val == "Unknown" or val == "N/A":
+    if val is None or val == "" or val == "Unknown" or val == "N/A" or val == "To be filled by O.E.M.":
         return default_text
     return str(val)
+
+def get_auto_pc_specs():
+    """
+    Automatically detects PC Brand (Manufacturer), Model, and Serial Number from system DMI / WMI / BIOS.
+    """
+    specs = {
+        "brand": "Inconnu",
+        "model": "Inconnu",
+        "serial": "Inconnu"
+    }
+
+    sys_platform = platform.system()
+
+    if sys_platform == "Windows":
+        # Windows WMI / PowerShell queries
+        try:
+            cmd_brand = 'powershell "(Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer"'
+            brand_out = subprocess.check_output(cmd_brand, shell=True, timeout=2).decode().strip()
+            if brand_out and "To be filled" not in brand_out:
+                specs["brand"] = brand_out
+        except Exception:
+            pass
+
+        try:
+            cmd_model = 'powershell "(Get-CimInstance -ClassName Win32_ComputerSystem).Model"'
+            model_out = subprocess.check_output(cmd_model, shell=True, timeout=2).decode().strip()
+            if model_out and "To be filled" not in model_out:
+                specs["model"] = model_out
+        except Exception:
+            pass
+
+        try:
+            cmd_serial = 'powershell "(Get-CimInstance -ClassName Win32_Bios).SerialNumber"'
+            serial_out = subprocess.check_output(cmd_serial, shell=True, timeout=2).decode().strip()
+            if serial_out and "To be filled" not in serial_out:
+                specs["serial"] = serial_out
+        except Exception:
+            pass
+
+    elif sys_platform == "Linux":
+        # Linux DMI sysfs files
+        for path, key in [
+            ("/sys/class/dmi/id/sys_vendor", "brand"),
+            ("/sys/class/dmi/id/product_name", "model"),
+            ("/sys/class/dmi/id/product_serial", "serial")
+        ]:
+            if os.path.exists(path):
+                try:
+                    with open(path, "r") as f:
+                        content = f.read().strip()
+                        if content and "To be filled" not in content and content != "None":
+                            specs[key] = content
+                except Exception:
+                    pass
+
+    elif sys_platform == "Darwin":
+        # macOS system_profiler
+        try:
+            specs["brand"] = "Apple"
+            cmd_model = "sysctl -n hw.model"
+            specs["model"] = subprocess.check_output(cmd_model, shell=True, timeout=2).decode().strip()
+        except Exception:
+            pass
+
+    # Final fallback cleaning
+    if specs["brand"] == "Inconnu" or not specs["brand"]:
+        specs["brand"] = platform.system()
+    if specs["model"] == "Inconnu" or not specs["model"]:
+        specs["model"] = f"{platform.machine()} ({platform.processor() or 'PC'})"
+    if specs["serial"] == "Inconnu" or not specs["serial"]:
+        specs["serial"] = f"SN-{hash(platform.node()) & 0xFFFFFF}"
+
+    return specs
 
 def get_live_temperatures():
     """
@@ -113,6 +186,7 @@ def get_live_temperatures():
 
 def get_system_diagnostics():
     live_temps = get_live_temperatures()
+    pc_specs = get_auto_pc_specs()
 
     # 1. CPU
     try:
@@ -130,7 +204,6 @@ def get_system_diagnostics():
         else:
             freq_str = "Non disponible"
 
-        # Accurate non-zero CPU load sampling over 100ms window
         cpu_usage_num = psutil.cpu_percent(interval=0.1)
         cpu_usage = f"{round(cpu_usage_num, 1)}%"
         temps_str = live_temps["cpu_temp"]
@@ -178,7 +251,6 @@ def get_system_diagnostics():
                 free_gb = round(usage.free / (1024**3), 2)
                 used_gb = round(usage.used / (1024**3), 2)
 
-                # I/O Stats
                 device_name = part.device.replace("/dev/", "").replace("\\", "")
                 io_info = "Lecture/Écriture: N/A"
                 if device_name in disk_counters:
@@ -187,7 +259,6 @@ def get_system_diagnostics():
                     write_mb = round(c.write_bytes / (1024**2), 1)
                     io_info = f"Lu: {read_mb} Mo | Écrit: {write_mb} Mo"
 
-                # Health state estimation based on space
                 health_status = "Bon" if usage.percent < 85 else ("Attention (>85% plein)" if usage.percent < 95 else "Critique (>95% plein)")
 
                 disks.append({
@@ -229,7 +300,6 @@ def get_system_diagnostics():
                 mins = (secs % 3600) // 60
                 lifetime = f"Environ {hrs}h {mins}min restantes"
 
-            # Wear estimation
             wear_est = "État normal (Capacité optimale)" if pct > 75 else ("Usure modérée" if pct > 40 else "Batterie faible / Usée")
 
             battery_info = {
@@ -324,6 +394,7 @@ def get_system_diagnostics():
 
     return {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "pcSpecs": pc_specs,
         "cpu": cpu_info,
         "ram": ram_info,
         "disks": disks,
