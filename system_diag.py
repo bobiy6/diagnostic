@@ -10,14 +10,33 @@ try:
 except Exception:
     pass
 
+def _is_invalid_serial(s):
+    if not s:
+        return True
+    s_lower = str(s).strip().lower()
+    invalid_keywords = [
+        "to be filled",
+        "default string",
+        "o.e.m",
+        "oem",
+        "00000000",
+        "12345678",
+        "none",
+        "not specified",
+        "unknown",
+        "system serial number"
+    ]
+    return any(k in s_lower for k in invalid_keywords)
+
 def get_fallback(val, default_text="Non disponible"):
-    if val is None or val == "" or val == "Unknown" or val == "N/A" or val == "To be filled by O.E.M.":
+    if _is_invalid_serial(val):
         return default_text
     return str(val)
 
 def get_auto_pc_specs():
     """
-    Automatically detects PC Brand (Manufacturer), Model, and Serial Number from system DMI / WMI / BIOS.
+    Automatically detects PC Brand (Manufacturer), Model, and Serial Number.
+    Queries BIOS serial, Motherboard serial, System UUID, and Disk serial to bypass 'To be filled by O.E.M.' strings.
     """
     specs = {
         "brand": "Inconnu",
@@ -28,49 +47,87 @@ def get_auto_pc_specs():
     sys_platform = platform.system()
 
     if sys_platform == "Windows":
-        # Windows WMI / PowerShell queries
+        # 1. PC Brand / Manufacturer
         try:
             cmd_brand = 'powershell "(Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer"'
             brand_out = subprocess.check_output(cmd_brand, shell=True, timeout=2).decode().strip()
-            if brand_out and "To be filled" not in brand_out:
+            if not _is_invalid_serial(brand_out):
                 specs["brand"] = brand_out
         except Exception:
             pass
 
+        # 2. PC Model
         try:
             cmd_model = 'powershell "(Get-CimInstance -ClassName Win32_ComputerSystem).Model"'
             model_out = subprocess.check_output(cmd_model, shell=True, timeout=2).decode().strip()
-            if model_out and "To be filled" not in model_out:
+            if not _is_invalid_serial(model_out):
                 specs["model"] = model_out
         except Exception:
             pass
 
+        # 3. Serial Number Fallback Chain: BIOS -> Motherboard -> UUID -> Primary Disk Serial
+        candidate_serial = ""
+
+        # Option A: Win32_Bios
         try:
-            cmd_serial = 'powershell "(Get-CimInstance -ClassName Win32_Bios).SerialNumber"'
-            serial_out = subprocess.check_output(cmd_serial, shell=True, timeout=2).decode().strip()
-            if serial_out and "To be filled" not in serial_out:
-                specs["serial"] = serial_out
+            cmd_bios = 'powershell "(Get-CimInstance -ClassName Win32_Bios).SerialNumber"'
+            out_bios = subprocess.check_output(cmd_bios, shell=True, timeout=2).decode().strip()
+            if not _is_invalid_serial(out_bios):
+                candidate_serial = out_bios
         except Exception:
             pass
+
+        # Option B: Win32_BaseBoard (Motherboard)
+        if not candidate_serial:
+            try:
+                cmd_mb = 'powershell "(Get-CimInstance -ClassName Win32_BaseBoard).SerialNumber"'
+                out_mb = subprocess.check_output(cmd_mb, shell=True, timeout=2).decode().strip()
+                if not _is_invalid_serial(out_mb):
+                    candidate_serial = out_mb
+            except Exception:
+                pass
+
+        # Option C: Win32_ComputerSystemProduct UUID
+        if not candidate_serial:
+            try:
+                cmd_uuid = 'powershell "(Get-CimInstance -ClassName Win32_ComputerSystemProduct).UUID"'
+                out_uuid = subprocess.check_output(cmd_uuid, shell=True, timeout=2).decode().strip()
+                if not _is_invalid_serial(out_uuid) and len(out_uuid) > 8:
+                    candidate_serial = f"UUID-{out_uuid[:13]}"
+            except Exception:
+                pass
+
+        # Option D: Primary Disk Drive Serial
+        if not candidate_serial:
+            try:
+                cmd_disk = 'powershell "(Get-CimInstance -ClassName Win32_DiskDrive)[0].SerialNumber"'
+                out_disk = subprocess.check_output(cmd_disk, shell=True, timeout=2).decode().strip()
+                if not _is_invalid_serial(out_disk):
+                    candidate_serial = out_disk
+            except Exception:
+                pass
+
+        if candidate_serial:
+            specs["serial"] = candidate_serial
 
     elif sys_platform == "Linux":
         # Linux DMI sysfs files
         for path, key in [
             ("/sys/class/dmi/id/sys_vendor", "brand"),
             ("/sys/class/dmi/id/product_name", "model"),
-            ("/sys/class/dmi/id/product_serial", "serial")
+            ("/sys/class/dmi/id/product_serial", "serial"),
+            ("/sys/class/dmi/id/board_serial", "serial")
         ]:
-            if os.path.exists(path):
+            if os.path.exists(path) and (key == "serial" and specs["serial"] == "Inconnu" or key != "serial"):
                 try:
                     with open(path, "r") as f:
                         content = f.read().strip()
-                        if content and "To be filled" not in content and content != "None":
+                        if not _is_invalid_serial(content):
                             specs[key] = content
                 except Exception:
                     pass
 
     elif sys_platform == "Darwin":
-        # macOS system_profiler
         try:
             specs["brand"] = "Apple"
             cmd_model = "sysctl -n hw.model"
@@ -83,8 +140,8 @@ def get_auto_pc_specs():
         specs["brand"] = platform.system()
     if specs["model"] == "Inconnu" or not specs["model"]:
         specs["model"] = f"{platform.machine()} ({platform.processor() or 'PC'})"
-    if specs["serial"] == "Inconnu" or not specs["serial"]:
-        specs["serial"] = f"SN-{hash(platform.node()) & 0xFFFFFF}"
+    if _is_invalid_serial(specs["serial"]) or specs["serial"] == "Inconnu":
+        specs["serial"] = f"SN-{hash(platform.node()) & 0xFFFFFF:06X}"
 
     return specs
 
