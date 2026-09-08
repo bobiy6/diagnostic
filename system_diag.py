@@ -133,7 +133,7 @@ def get_auto_pc_specs():
     _CACHED_PC_SPECS = specs
     return _CACHED_PC_SPECS
 
-def get_live_temperatures():
+def get_live_temperatures(cpu_load=None):
     """
     Fast, non-blocking live temperature query.
     Uses psutil sensors first and fast dynamic estimation to prevent GUI stutter.
@@ -184,8 +184,10 @@ def get_live_temperatures():
                     results["gpu_temp"] = f"{max_gpu_val} °C"
                     results["gpu_temp_val"] = max_gpu_val
 
-        # 2. Fast non-blocking CPU load thermal estimation
-        cpu_load = psutil.cpu_percent(interval=None) or 5.0
+        # 2. Fast thermal estimation based on provided cpu_load
+        if cpu_load is None:
+            cpu_load = 5.0
+
         if results["cpu_temp_val"] is None:
             est_cpu = round(38.0 + (cpu_load * 0.38), 1)
             results["cpu_temp"] = f"{est_cpu} °C (Est.)"
@@ -215,10 +217,15 @@ def get_live_temperatures():
     return results
 
 def get_system_diagnostics():
-    live_temps = get_live_temperatures()
+    # 1. CPU Usage calculation over a real 100ms sampling window
+    try:
+        cpu_usage_num = psutil.cpu_percent(interval=0.1)
+    except Exception:
+        cpu_usage_num = 5.0
+
+    live_temps = get_live_temperatures(cpu_load=cpu_usage_num)
     pc_specs = get_auto_pc_specs()
 
-    # 1. CPU
     try:
         cpu_model = platform.processor() or get_fallback(None)
         physical_cores = psutil.cpu_count(logical=False) or "N/A"
@@ -233,7 +240,6 @@ def get_system_diagnostics():
         else:
             freq_str = "Non disponible"
 
-        cpu_usage_num = psutil.cpu_percent(interval=None)
         cpu_usage = f"{round(cpu_usage_num, 1)}%"
         temps_str = live_temps["cpu_temp"]
 
