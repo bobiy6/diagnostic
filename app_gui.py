@@ -1,4 +1,6 @@
 import os
+import sys
+import multiprocessing
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
@@ -242,5 +244,6 @@ class PCDiagnosticApp(ctk.CTk):
                 messagebox.showerror("Erreur PDF", f"Impossible de générer le rapport PDF :\n{str(e)}")
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     app = PCDiagnosticApp()
     app.mainloop()

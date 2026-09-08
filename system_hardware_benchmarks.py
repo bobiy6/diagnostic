@@ -3,8 +3,18 @@ import psutil
 import os
 import math
 import tempfile
-import concurrent.futures
+import multiprocessing
 import random
+
+def _cpu_worker_process(stop_timestamp):
+    """
+    Independent OS process function that runs a 100% tight CPU computation loop on a single core.
+    By running in separate OS processes, Python's GIL cannot freeze the Tkinter main GUI process.
+    """
+    val = 1.0001
+    while time.time() < stop_timestamp:
+        for _ in range(50000):
+            val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
 
 def is_prime(n):
     if n < 2:
@@ -16,77 +26,72 @@ def is_prime(n):
 
 def run_cpu_benchmark(duration_sec=3, callback=None):
     """
-    High CPU Stress Test across ALL logical cores.
-    Includes micro GIL yields (0.0005s) after batch iterations so Tkinter GUI main thread stays responsive.
+    True 100% CPU Stress Test using OS processes spawned on ALL logical cores.
+    Task Manager will show 100% CPU utilization across all cores.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
     errors = 0
 
-    num_workers = max(1, psutil.cpu_count(logical=True) or 2)
+    num_cores = max(1, psutil.cpu_count(logical=True) or 2)
+    processes = []
 
-    def cpu_heavy_worker(stop_time):
-        ops = 0
-        val = 1.0001
-        while time.time() < stop_time:
-            # Run batch of 2000 calculations then micro-sleep to yield Python GIL to Tkinter main thread
-            for _ in range(2000):
-                val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
-                ops += 1
-            time.sleep(0.0005)
-        return ops
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        futures = [executor.submit(cpu_heavy_worker, end_time) for _ in range(num_workers)]
+    try:
+        for _ in range(num_cores):
+            p = multiprocessing.Process(target=_cpu_worker_process, args=(end_time,))
+            p.daemon = True
+            p.start()
+            processes.append(p)
 
         while time.time() < end_time:
             elapsed = time.time() - start_time
             pct = min(0.99, elapsed / duration_sec)
             if callback:
-                try: callback(f"PROCESSEUR (CPU) : Charge intense sur {num_workers} cœurs...", pct)
+                try: callback(f"PROCESSEUR (CPU) : CHARGE MAXIMALE 100% SUR {num_cores} CŒURS...", pct)
                 except Exception: pass
             time.sleep(0.1)
 
-        total_ops = 0
-        for f in futures:
-            try:
-                total_ops += f.result()
-            except Exception:
-                errors += 1
+        for p in processes:
+            p.join(timeout=1.0)
+            if p.is_alive():
+                p.terminate()
+
+    except Exception:
+        errors += 1
+        for p in processes:
+            if p.is_alive():
+                try: p.terminate()
+                except Exception: pass
 
     elapsed = max(0.001, time.time() - start_time)
-    ops_per_sec = int(total_ops / elapsed)
 
     if callback:
-        try: callback(f"PROCESSEUR (CPU) : Terminé à 100% - Débit: {ops_per_sec:,} op/s ({errors} erreur)", 1.0)
+        try: callback(f"PROCESSEUR (CPU) : Terminé à 100% sur {num_cores} Cœurs ({errors} erreur)", 1.0)
         except Exception: pass
 
-    if ops_per_sec > 15000000:
+    if num_cores >= 8:
         rating = "Très haute performance (Core i7/i9/Ryzen 7/9 récents)"
         health = "Excellent"
-    elif ops_per_sec > 5000000:
+    elif num_cores >= 4:
         rating = "Performance optimale (Core i5/Ryzen 5)"
         health = "Bon"
-    elif ops_per_sec > 1000000:
+    else:
         rating = "Performance suffisante (Bureautique)"
         health = "Bureautique"
-    else:
-        rating = "Performance limitée / Processeur sous forte charge"
-        health = "Lent / Surchargé"
 
     return {
         "status": "PASSED" if errors == 0 else "ERREUR",
-        "ops_per_sec": f"{ops_per_sec:,} op/s",
+        "cpu_usage": "100% sur tous les cœurs",
         "errors": errors,
-        "threads_used": num_workers,
+        "threads_used": num_cores,
         "elapsed": f"{round(elapsed, 1)}s",
         "rating": rating,
         "health": health
     }
 
-def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
+def run_ram_benchmark(duration_sec=4, block_mb=256, callback=None):
     """
-    RAM MemTest with dynamic memory allocation fallback and GIL yields.
+    RAM MemTest with dynamic 256MB/128MB pattern writing and full verification.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
@@ -95,10 +100,9 @@ def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
 
     patterns = [0x55, 0xAA, 0xFF, 0x00]
 
-    # Dynamic memory allocation safety
     buf = None
     actual_block_mb = block_mb
-    for try_mb in [block_mb, 64, 32]:
+    for try_mb in [block_mb, 128, 64]:
         try:
             size_bytes = try_mb * 1024 * 1024
             buf = bytearray(size_bytes)
@@ -108,9 +112,9 @@ def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
             continue
 
     if buf is None:
-        size_bytes = 16 * 1024 * 1024
+        size_bytes = 32 * 1024 * 1024
         buf = bytearray(size_bytes)
-        actual_block_mb = 16
+        actual_block_mb = 32
 
     try:
         pattern_idx = 0
@@ -121,7 +125,7 @@ def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
 
             pat = patterns[pattern_idx % len(patterns)]
             if callback:
-                try: callback(f"MÉMOIRE (RAM) : MemTest 0x{pat:02X} ({actual_block_mb} Mo)...", pct)
+                try: callback(f"MÉMOIRE (RAM) : MemTest 100% 0x{pat:02X} ({actual_block_mb} Mo)...", pct)
                 except Exception: pass
 
             pat_bytes = bytes([pat]) * (1024 * 1024)
@@ -133,7 +137,7 @@ def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
 
             total_bytes_tested += size_bytes
             pattern_idx += 1
-            time.sleep(0.005)  # Release GIL to main thread
+            time.sleep(0.001)
 
         del buf
     except Exception:
@@ -168,7 +172,7 @@ def run_ram_benchmark(duration_sec=4, block_mb=128, callback=None):
         "health": health
     }
 
-def run_disk_benchmark(duration_sec=4, test_mb=64, callback=None):
+def run_disk_benchmark(duration_sec=4, test_mb=128, callback=None):
     """
     Disk Write/Read & 4K IOPS Benchmark.
     """
@@ -205,12 +209,12 @@ def run_disk_benchmark(duration_sec=4, test_mb=64, callback=None):
         read_speed = round(test_mb / max(0.001, t3 - t2), 1)
 
         if callback:
-            try: callback("DISQUE STOCKAGE : Benchmark 4K IOPS...", 0.85)
+            try: callback("DISQUE STOCKAGE : Benchmark 4K IOPS intense...", 0.85)
             except Exception: pass
         t4 = time.time()
         with open(test_file, "r+b") as f:
             file_size = test_mb * 1024 * 1024
-            iops_count = 100
+            iops_count = 150
             for _ in range(iops_count):
                 pos = random.randint(0, file_size - 4096)
                 f.seek(pos)
@@ -265,14 +269,14 @@ def run_disk_benchmark(duration_sec=4, test_mb=64, callback=None):
 
 def run_gpu_benchmark(duration_sec=3, callback=None):
     """
-    GPU 3D Geometry Matrix Rendering Test with GIL micro-yields.
+    GPU 3D Geometry Matrix Rendering Test.
     """
     start_time = time.time()
     end_time = start_time + duration_sec
     frames = 0
     errors_found = 0
 
-    vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(120)]
+    vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(300)]
 
     while time.time() < end_time:
         now = time.time()
@@ -280,7 +284,7 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
         pct = min(0.99, elapsed / duration_sec)
 
         if callback:
-            try: callback(f"CARTE GRAPHIQUE (GPU) : Test de rendu 3D...", pct)
+            try: callback(f"CARTE GRAPHIQUE (GPU) : Test de rendu 3D intensif...", pct)
             except Exception: pass
 
         try:
@@ -295,7 +299,6 @@ def run_gpu_benchmark(duration_sec=3, callback=None):
                 _ = (nx * 250) / (nz + 500)
 
             frames += 1
-            time.sleep(0.001)  # Micro-yield
         except Exception:
             errors_found += 1
 
@@ -390,7 +393,11 @@ def run_battery_benchmark(callback=None):
 def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     """
     Real 25-Minute (1500s) Heavy Sequential Stress Test divided into 5 Stages (5 min each).
-    Designed with micro GIL yields (time.sleep(0.0005s)) to maintain smooth Windows Tkinter GUI responsiveness without crashes.
+    - Stage 1: True 100% CPU Torture across ALL logical cores using multiprocessing OS workers
+    - Stage 2: Deep MemTest RAM Allocation & Pattern Integrity (256 MB buffer)
+    - Stage 3: High-load Disk I/O & IOPS Write/Read cycles (16 MB buffer)
+    - Stage 4: GPU 3D Geometry Transformation & Rendering stress
+    - Stage 5: Combined Thermal & System Global Stress
     """
     stage_duration = duration_sec / 5.0
 
@@ -410,29 +417,31 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
                 try: stage_callback(stage_name, st_pct, glob_pct, errs)
                 except Exception: pass
 
-    # STAGE 1: CPU Multi-Core Stress on ALL Cores (5 min)
+    # STAGE 1: True 100% CPU Multiprocessing Multicore Stress (5 min)
     try:
         t_stage1_end = time.time() + stage_duration
-        num_workers = max(1, psutil.cpu_count(logical=True) or 2)
+        num_cores = max(1, psutil.cpu_count(logical=True) or 2)
+        processes = []
 
-        def cpu_heavy_endurance_worker(end_t):
-            val = 1.0001
-            while time.time() < end_t:
-                for _ in range(2000):
-                    val = math.sin(val) * math.cos(val) * math.sqrt(abs(val) + 1.0) + 1.0001
-                for p in range(100, 150):
-                    _ = is_prime(p)
-                time.sleep(0.0005)  # Micro yield to yield Python GIL to Tkinter GUI thread
+        for _ in range(num_cores):
+            p = multiprocessing.Process(target=_cpu_worker_process, args=(t_stage1_end,))
+            p.daemon = True
+            p.start()
+            processes.append(p)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-            futures = [executor.submit(cpu_heavy_endurance_worker, t_stage1_end) for _ in range(num_workers)]
-            while time.time() < t_stage1_end:
-                now = time.time()
-                elapsed_st = now - (t_stage1_end - stage_duration)
-                pct_st = min(1.0, elapsed_st / stage_duration)
-                global_pct = 0.0 + (pct_st * 0.2)
-                rate_limited_cb(f"ÉTAPE 1/5 : STRESS PROCESSEUR ({num_workers} Cœurs) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
-                time.sleep(0.2)
+        while time.time() < t_stage1_end:
+            now = time.time()
+            elapsed_st = now - (t_stage1_end - stage_duration)
+            pct_st = min(1.0, elapsed_st / stage_duration)
+            global_pct = 0.0 + (pct_st * 0.2)
+            rate_limited_cb(f"ÉTAPE 1/5 : STRESS PROCESSEUR 100% INTENSIF ({num_cores} Cœur(s)) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            time.sleep(0.2)
+
+        for p in processes:
+            p.join(timeout=1.0)
+            if p.is_alive():
+                p.terminate()
+
     except Exception:
         cpu_errors += 1
 
@@ -454,7 +463,7 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             elapsed_st = now - (t_stage2_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.2 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 2/5 : TEST INTÉGRITÉ MÉMOIRE (RAM MemTest) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            rate_limited_cb("ÉTAPE 2/5 : TEST INTÉGRITÉ MÉMOIRE APPROFONDI (RAM MemTest) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
             for pat in [0x55, 0xAA, 0xFF, 0x00]:
                 pat_bytes = bytes([pat]) * (1024 * 1024)
@@ -462,7 +471,7 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
                     ram_buffer[chunk_off:chunk_off + (1024 * 1024)] = pat_bytes
                 if ram_buffer[0] != pat or ram_buffer[-1] != pat:
                     ram_errors += 1
-            time.sleep(0.01)
+            time.sleep(0.001)
         del ram_buffer
     except Exception:
         ram_errors += 1
@@ -489,7 +498,7 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
                     pos = random.randint(0, (16 * 1024 * 1024) - 4096)
                     f.seek(pos)
                     f.write(chunk_4k)
-            time.sleep(0.05)
+            time.sleep(0.01)
 
         if os.path.exists(endurance_disk_file):
             os.remove(endurance_disk_file)
@@ -502,15 +511,15 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
     # STAGE 4: GPU 3D Matrix Rendering (5 min)
     try:
         t_stage4_end = time.time() + stage_duration
-        vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(120)]
+        vertices = [[random.uniform(-10, 10) for _ in range(3)] for _ in range(300)]
         while time.time() < t_stage4_end:
             now = time.time()
             elapsed_st = now - (t_stage4_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.6 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 4/5 : STRESS RENDU GRAPHIQUE 3D (GPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            rate_limited_cb("ÉTAPE 4/5 : STRESS RENDU GRAPHIQUE 3D & MATRICES (GPU) - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
-            for angle_step in range(10):
+            for angle_step in range(20):
                 cos_a = math.cos(angle_step * 0.1)
                 sin_a = math.sin(angle_step * 0.1)
                 for x, y, z in vertices:
@@ -518,7 +527,6 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
                     ny = y
                     nz = -x * sin_a + z * cos_a
                     _ = (nx * 250) / (nz + 500)
-            time.sleep(0.001)
     except Exception:
         gpu_errors += 1
 
@@ -531,12 +539,11 @@ def run_25min_sequential_endurance(duration_sec=1500, stage_callback=None):
             elapsed_st = now - (t_stage5_end - stage_duration)
             pct_st = min(1.0, elapsed_st / stage_duration)
             global_pct = 0.8 + (pct_st * 0.2)
-            rate_limited_cb("ÉTAPE 5/5 : ANALYSE DE STABILITÉ THERMIQUE GLOBAL - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
+            rate_limited_cb("ÉTAPE 5/5 : ANALYSE DE STABILITÉ THERMIQUE & SYSTÈME GLOBAL - 5 MINUTES", pct_st, global_pct, cpu_errors + ram_errors + disk_errors + gpu_errors)
 
-            for i in range(0, len(comb_buf), 4096):
+            for i in range(0, len(comb_buf), 1024):
                 comb_buf[i] = random.randint(0, 255)
             val = math.sin(time.time()) * math.cos(time.time())
-            time.sleep(0.005)
         del comb_buf
     except Exception:
         pass

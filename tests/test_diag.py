@@ -21,7 +21,7 @@ class TestPCDiagnostic(unittest.TestCase):
     def test_advanced_hardware_benchmarks(self):
         benchmarks = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=True)
         self.assertIn("cpu", benchmarks)
-        self.assertIn("ops_per_sec", benchmarks["cpu"])
+        self.assertIn("cpu_usage", benchmarks["cpu"])
         self.assertIn("ram", benchmarks)
         self.assertIn("write_read_speed", benchmarks["ram"])
         self.assertIn("errors", benchmarks["ram"])
