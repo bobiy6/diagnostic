@@ -4,6 +4,12 @@ import datetime
 import os
 import subprocess
 
+# Prime psutil CPU percent baseline on module import
+try:
+    psutil.cpu_percent(interval=None)
+except Exception:
+    pass
+
 def get_fallback(val, default_text="Non disponible"):
     if val is None or val == "" or val == "Unknown" or val == "N/A":
         return default_text
@@ -75,9 +81,8 @@ def get_live_temperatures():
                 pass
 
         # 3. Dynamic Thermal Baseline Estimation if hardware ACPI sensors are restricted
-        cpu_load = psutil.cpu_percent(interval=None) or 5.0
+        cpu_load = psutil.cpu_percent(interval=0.05) or 5.0
         if results["cpu_temp_val"] is None:
-            # Baseline ~38°C + thermal load curve based on CPU %
             est_cpu = round(38.0 + (cpu_load * 0.38), 1)
             results["cpu_temp"] = f"{est_cpu} °C (Est.)"
             results["cpu_temp_val"] = est_cpu
@@ -114,18 +119,20 @@ def get_system_diagnostics():
         cpu_model = platform.processor() or get_fallback(None)
         physical_cores = psutil.cpu_count(logical=False) or "N/A"
         logical_cores = psutil.cpu_count(logical=True) or "N/A"
-        cpu_cores_str = f"{physical_cores} cœurs physiques / {logical_cores} cœurs logiques"
+        cpu_cores_str = f"{physical_cores} cœurs phys. / {logical_cores} log."
 
         freq = psutil.cpu_freq()
         if freq:
             current_speed = f"{round(freq.current / 1000, 2)} GHz"
             max_speed = f"{round(freq.max / 1000, 2)} GHz" if freq.max else "Inconnu"
             min_speed = f"{round(freq.min / 1000, 2)} GHz" if freq.min else "Inconnu"
-            freq_str = f"{current_speed} (Min: {min_speed} | Max: {max_speed})"
+            freq_str = f"{current_speed} (Max: {max_speed})"
         else:
             freq_str = "Non disponible"
 
-        cpu_usage = f"{psutil.cpu_percent(interval=None)}%"
+        # Accurate non-zero CPU load sampling over 100ms window
+        cpu_usage_num = psutil.cpu_percent(interval=0.1)
+        cpu_usage = f"{round(cpu_usage_num, 1)}%"
         temps_str = live_temps["cpu_temp"]
 
         cpu_info = {
@@ -236,14 +243,14 @@ def get_system_diagnostics():
         else:
             battery_info = {
                 "hasBattery": False,
-                "percent": "Non disponible (PC Fixe / Sans batterie)",
-                "isCharging": "Non disponible",
-                "lifetime": "Non disponible",
-                "wearEstimation": "Non disponible",
-                "health": "Non disponible"
+                "percent": "Sur secteur (PC Fixe)",
+                "isCharging": "Secteur",
+                "lifetime": "Alimentation fixe",
+                "wearEstimation": "Secteur",
+                "health": "Secteur (PC Fixe)"
             }
     except Exception:
-        battery_info = {"hasBattery": False, "percent": "Non disponible", "isCharging": "Non disponible", "lifetime": "Non disponible", "wearEstimation": "Non disponible", "health": "Non disponible"}
+        battery_info = {"hasBattery": False, "percent": "Sur secteur (PC Fixe)", "isCharging": "Secteur", "lifetime": "Non disponible", "wearEstimation": "Secteur", "health": "PC Fixe"}
 
     # 5. Network
     network_info = []
