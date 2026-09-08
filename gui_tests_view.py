@@ -22,7 +22,7 @@ class TestsView(ctk.CTkFrame):
 
         banner_desc = ctk.CTkLabel(
             banner_card,
-            text="Tests séquentiels composant par composant (CPU Multi-Cœurs -> RAM MemTest -> Disque IOPS -> GPU 3D -> Batterie)",
+            text="Test de piétinement séquentiel 25 minutes (5 étapes x 5 min : CPU -> RAM -> Disque -> GPU -> Stabilité)",
             font=ctk.CTkFont(size=11),
             text_color="#94A3B8"
         )
@@ -32,27 +32,15 @@ class TestsView(ctk.CTkFrame):
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.grid(row=1, column=0, padx=0, pady=(0, 10), sticky="ew")
 
-        self.btn_run_fast = ctk.CTkButton(
-            btn_frame,
-            text="⚡  Test Séquentiel Rapide (30s)",
-            fg_color="#334155",
-            hover_color="#475569",
-            height=38,
-            corner_radius=8,
-            font=ctk.CTkFont(size=12, weight="bold"),
-            command=lambda: self.start_benchmark_thread(quick=True)
-        )
-        self.btn_run_fast.pack(side="left", padx=(0, 10))
-
         self.btn_run_deep = ctk.CTkButton(
             btn_frame,
-            text="🔥  TEST DE PIÉTINEMENT 25 MINUTES (5 x 5 min)",
+            text="🔥  LANCER LE TEST DE PIÉTINEMENT 25 MINUTES (5 x 5 min)",
             fg_color="#0099DA",
             hover_color="#0072CE",
-            height=38,
+            height=42,
             corner_radius=8,
-            font=ctk.CTkFont(size=12, weight="bold"),
-            command=lambda: self.start_benchmark_thread(quick=False)
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=lambda: self.start_benchmark_thread()
         )
         self.btn_run_deep.pack(side="left", padx=(0, 10))
 
@@ -62,9 +50,9 @@ class TestsView(ctk.CTkFrame):
             text="🛑  Interrompre le Test",
             fg_color="#DC2626",
             hover_color="#B91C1C",
-            height=38,
+            height=42,
             corner_radius=8,
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ctk.CTkFont(size=13, weight="bold"),
             state="disabled",
             command=self.stop_benchmark
         )
@@ -104,7 +92,7 @@ class TestsView(ctk.CTkFrame):
             border_width=1,
             border_color="#1F2937"
         )
-        self.textbox_log.insert("1.0", "Exécution séquentielle : chaque composant est testé individuellement de 0% à 100%.\n")
+        self.textbox_log.insert("1.0", "Exécution du test de piétinement 25 min : chaque composant est sollicité pendant 5 minutes.\n")
         self.textbox_log.grid(row=3, column=0, padx=0, pady=0, sticky="nsew")
 
         self.test_results = {}
@@ -116,17 +104,6 @@ class TestsView(ctk.CTkFrame):
         self.btn_stop.configure(state="disabled", text="⏳ Interruption en cours...")
         self.textbox_log.insert("end", "\n🛑 DEMANDE D'INTERRUPTION ENVOYÉE PAR L'UTILISATEUR...\n")
         self.textbox_log.see("end")
-
-    def update_single_progress(self, message, pct):
-        try:
-            self.progress_bar.set(pct)
-            self.lbl_stage.configure(text=f"[{int(pct*100)}%] {message}")
-            if pct >= 1.0 or self.last_log_message != message:
-                self.last_log_message = message
-                self.textbox_log.insert("end", f"[{int(pct*100)}%] {message}\n")
-                self.textbox_log.see("end")
-        except Exception:
-            pass
 
     def update_stage_progress(self, stage_name, stage_pct, global_pct, errors_count):
         try:
@@ -144,9 +121,8 @@ class TestsView(ctk.CTkFrame):
         except Exception:
             pass
 
-    def start_benchmark_thread(self, quick=True):
+    def start_benchmark_thread(self):
         self.stop_requested = False
-        self.btn_run_fast.configure(state="disabled")
         self.btn_run_deep.configure(state="disabled")
         self.btn_stop.configure(state="normal", text="🛑  Interrompre le Test")
         self.progress_bar.set(0)
@@ -154,23 +130,17 @@ class TestsView(ctk.CTkFrame):
         self.lbl_errors_count.configure(text="ANOMALIES MATÉRIELLES : 0 (STABLE)", text_color="#10B981")
         self.last_log_message = ""
 
-        mode_str = "RAPIDE SÉQUENTIEL" if quick else "TEST SÉQUENTIEL 25 MINUTES (5 X 5 MIN)"
-        self.textbox_log.insert("end", f"=== DÉMARRAGE DES TESTS COMPOSANT PAR COMPOSANT ({mode_str}) ===\n\n")
+        self.textbox_log.insert("end", "=== DÉMARRAGE DU TEST DE PIÉTINEMENT 25 MINUTES (5 X 5 MIN) ===\n\n")
 
-        thread = threading.Thread(target=self.run_benchmarks, args=(quick,), daemon=True)
+        thread = threading.Thread(target=self.run_benchmarks, daemon=True)
         thread.start()
 
-    def run_benchmarks(self, quick):
+    def run_benchmarks(self):
         stop_fn = lambda: self.stop_requested
         try:
-            if quick:
-                def cb(msg, pct):
-                    self.after(0, self.update_single_progress, msg, pct)
-                res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=True, callback=cb, stop_checker=stop_fn)
-            else:
-                def stage_cb(stage_name, st_pct, glob_pct, errs):
-                    self.after(0, self.update_stage_progress, stage_name, st_pct, glob_pct, errs)
-                res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=False, stage_callback=stage_cb, stop_checker=stop_fn)
+            def stage_cb(stage_name, st_pct, glob_pct, errs):
+                self.after(0, self.update_stage_progress, stage_name, st_pct, glob_pct, errs)
+            res = system_hardware_benchmarks.run_all_hardware_benchmarks(quick=False, stage_callback=stage_cb, stop_checker=stop_fn)
 
             self.test_results = res
         except Exception as err:
@@ -183,9 +153,8 @@ class TestsView(ctk.CTkFrame):
                         self.textbox_log.insert("end", "\n=== TEST INTERROMPU PAR L'UTILISATEUR ===")
                     else:
                         self.progress_bar.set(1.0)
-                        self.lbl_stage.configure(text="TESTS SÉQUENTIELS TERMINÉS AVEC SUCCÈS !")
+                        self.lbl_stage.configure(text="TEST DE PIÉTINEMENT 25 MIN TERMINÉ AVEC SUCCÈS !")
                         self.textbox_log.insert("end", "\n=== TOUS LES TESTS MATÉRIELS ONT ÉTÉ EXÉCUTÉS AVEC SUCCÈS ===")
-                    self.btn_run_fast.configure(state="normal")
                     self.btn_run_deep.configure(state="normal")
                     self.btn_stop.configure(state="disabled", text="🛑  Interrompre le Test")
                 except Exception:

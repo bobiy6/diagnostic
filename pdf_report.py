@@ -29,17 +29,17 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
 
         # CPU
         cpu_res = test_results.get("cpu", {})
-        if cpu_res.get("health") == "Ralentissement / Lent":
+        if cpu_res.get("health") == "Lent / Surchargé":
             score -= 10
-            cpu_health = "Ralentissement / Surcharge"
-            problems.append(f"Processeur sous-performant ({cpu_res.get('ops_per_sec', 'N/A')})")
+            cpu_health = "Surchargé / Ralenti"
+            problems.append(f"Processeur sous forte charge ({cpu_res.get('temperature', 'N/A')})")
 
         # RAM
         ram_res = test_results.get("ram", {})
-        if ram_res.get("errors_found", 0) > 0:
+        if ram_res.get("errors", 0) > 0:
             score -= 30
             ram_health = "DÉFAILLANT (Erreurs MemTest)"
-            problems.append(f"ANOMALIE MATÉRIELLE: {ram_res.get('errors_found')} erreur(s) mémoire RAM détectée(s)")
+            problems.append(f"ANOMALIE MATÉRIELLE: {ram_res.get('errors')} erreur(s) mémoire RAM détectée(s)")
             actions.append("Remplacement de la barrette de RAM défectueuse par Mister Genius SA")
 
         # Disk
@@ -84,7 +84,7 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
         score -= 20
         disk_health = "Anomalie / Secteurs défectueux"
         problems.append("Anomalies ou secteurs défectueux détectés sur le disque")
-        actions.append("Remplacement impératif du disque")
+        actions.append("Remplacement impératif du disque par Mister Genius SA")
 
     if checklist.get("malwareCheck") == "non":
         score -= 15
@@ -94,12 +94,12 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
     if checklist.get("updatesDone") == "non":
         score -= 10
         problems.append("Système d'exploitation ou pilotes obsolètes")
-        actions.append("Mise à jour de Windows et des pilotes matériels")
+        actions.append("Mise à jour de Windows et des pilotes matériels par Mister Genius SA")
 
     issues_nature = questionnaire.get("issuesNature", "")
     if issues_nature and issues_nature.strip():
         score -= 10
-        problems.append(f"Symptôme / Problème signalé : {issues_nature}")
+        problems.append(f"Symptôme / Problème signalé : {issues_nature.strip()}")
 
     replaced_comps = questionnaire.get("replacedComponents", [])
     for comp in replaced_comps:
@@ -118,7 +118,7 @@ def calculate_synthesis(client_data, questionnaire, auto_data, test_results=None
         urgency = "Faible"
 
     is_pro = client_data.get("clientType") == "Professionnel"
-    maint_interval = "6 mois (Professionnel)" if is_pro else "1 an (Particulier)"
+    maint_interval = "6 mois (Semi-annuel • Professionnel)" if is_pro else "1 an (Annuel • Particulier)"
     recommendations.append(
         "Planifier une maintenance préventive semi-annuelle (tous les 6 mois) chez Mister Genius SA pour environnement professionnel."
         if is_pro else
@@ -222,10 +222,10 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
 
     elements = []
 
-    # Title Banner with High-Resolution Official Mister Genius Logo PNG Image
+    # Title Banner with Official Mister Genius Logo PNG Image (Aspect ratio preserved)
     logo_path = asset_utils.get_asset_path("assets/mister_genius_logo.png")
     if os.path.exists(logo_path):
-        logo_element = ReportLabImage(logo_path, width=160, height=48)
+        logo_element = ReportLabImage(logo_path, width=70, height=70)
     else:
         logo_element = Paragraph("<b>MISTER GENIUS SA</b>", mg_brand_title)
 
@@ -239,7 +239,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
         ]
     ]
 
-    t_header = Table(header_table_data, colWidths=[170, 370])
+    t_header = Table(header_table_data, colWidths=[80, 460])
     t_header.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
@@ -248,19 +248,19 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     ]))
 
     elements.append(t_header)
-    elements.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#0099DA'), spaceAfter=12))
+    elements.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#0099DA'), spaceAfter=10))
 
     # 1. Client & PC Info
-    elements.append(Paragraph("1. INFORMATIONS CLIENT & MACHINE", section_heading))
+    elements.append(Paragraph("1. INFORMATIONS CLIENT & SPÉCIFICATIONS MACHINE", section_heading))
     client_table_data = [
         [
             Paragraph(f"<b>Client :</b> {client_data.get('clientName', 'Non spécifié')}", normal_text),
-            Paragraph(f"<b>Date :</b> {client_data.get('date', 'N/A')}", normal_text),
-            Paragraph(f"<b>Technicien Mister Genius :</b> {client_data.get('technician', 'N/A')}", normal_text)
+            Paragraph(f"<b>Date d'Intervention :</b> {client_data.get('date', 'N/A')}", normal_text),
+            Paragraph(f"<b>Technicien :</b> {client_data.get('technician', 'N/A')}", normal_text)
         ],
         [
             Paragraph(f"<b>Type Client :</b> {client_data.get('clientType', 'Particulier')}", normal_text),
-            Paragraph(f"<b>Machine :</b> {client_data.get('pcBrand', '')} {client_data.get('pcModel', '')}", normal_text),
+            Paragraph(f"<b>Marque / Modèle :</b> {client_data.get('pcBrand', '')} {client_data.get('pcModel', '')}", normal_text),
             Paragraph(f"<b>N° Série :</b> {client_data.get('serialNumber', 'N/A')}", normal_text)
         ]
     ]
@@ -292,12 +292,12 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
         [
             Paragraph(f"<b>Note de Santé Globale :</b> <font color='{score_color}'><b>{synthesis['score']} / 100</b></font>", normal_text),
             Paragraph(f"<b>Niveau d'Urgence :</b> {synthesis['urgency']}", normal_text),
-            Paragraph(f"<b>Prochaine Maintenance :</b> {synthesis['nextMaintenanceDate']}", normal_text)
+            Paragraph(f"<b>Intervalle Révisé :</b> {synthesis['maintenanceInterval']}", normal_text)
         ],
         [
-            Paragraph(f"<b>Santé CPU :</b> {synthesis['cpu_health']}", normal_text),
+            Paragraph(f"<b>Santé Processeur :</b> {synthesis['cpu_health']}", normal_text),
             Paragraph(f"<b>Santé RAM :</b> {synthesis['ram_health']}", normal_text),
-            Paragraph(f"<b>Santé Disque :</b> {synthesis['disk_health']}", normal_text)
+            Paragraph(f"<b>Prochaine Date Conseillée :</b> <font color='#0099DA'><b>{synthesis['nextMaintenanceDate']}</b></font>", normal_text)
         ]
     ]
 
@@ -315,7 +315,7 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     elements.append(Spacer(1, 8))
 
     # 3. Real Benchmarks & Endurance Test Summary
-    elements.append(Paragraph("3. BENCHMARKS MATÉRIELS RÉELS & TEST DE PIÉTINEMENT (25 MIN)", section_heading))
+    elements.append(Paragraph("3. DIAGNOSTICS DÉTAILLÉS & TEST DE PIÉTINEMENT (25 MIN)", section_heading))
 
     cpu = auto_data.get("cpu", {})
     ram = auto_data.get("ram", {})
@@ -324,39 +324,39 @@ def generate_pdf_report(filepath, client_data, questionnaire, auto_data, test_re
     disks = auto_data.get("disks", [])
     disks_str = " | ".join([f"{d.get('mount')}: {d.get('total')} ({d.get('healthStatus')})" for d in disks]) if disks else "Non disponible"
 
+    endurance_str = "Non exécuté"
+    if test_results and "endurance" in test_results:
+        e_res = test_results["endurance"]
+        endurance_str = f"{e_res.get('status', 'N/A')} ({e_res.get('duration', '25 min')}, Anomalies: {e_res.get('total_errors', 0)})"
+
     bench_cpu_str = "Non exécuté"
     if test_results and "cpu" in test_results:
         c_res = test_results["cpu"]
-        bench_cpu_str = f"{c_res.get('ops_per_sec', 'N/A')} ({c_res.get('threads_used')} threads)"
+        bench_cpu_str = f"{c_res.get('cpu_usage', '~90%')} | Temp: {c_res.get('temperature', 'N/A')}"
 
     bench_ram_str = "Non exécuté"
     if test_results and "ram" in test_results:
         r_res = test_results["ram"]
-        bench_ram_str = f"Débit: {r_res.get('write_read_speed', 'N/A')} | Erreurs MemTest: {r_res.get('errors_found', 0)}"
+        bench_ram_str = f"Débit: {r_res.get('write_read_speed', 'N/A')} | Erreurs MemTest: {r_res.get('errors', 0)}"
 
     bench_disk_str = "Non exécuté"
     if test_results and "disk" in test_results:
         d_res = test_results["disk"]
-        bench_disk_str = f"Écrit: {d_res.get('write_speed', 'N/A')} | Lu: {d_res.get('read_speed', 'N/A')} | 4K: {d_res.get('iops_4k', 'N/A')}"
+        bench_disk_str = f"Écrit: {d_res.get('write_speed', 'N/A')} | Lu: {d_res.get('read_speed', 'N/A')} | IOPS: {d_res.get('iops_4k', 'N/A')}"
 
     bench_gpu_str = "Non exécuté"
     if test_results and "gpu" in test_results:
         g_res = test_results["gpu"]
-        bench_gpu_str = f"FPS: {g_res.get('fps', 'N/A')} | Score 3D: {g_res.get('score_3d', 'N/A')}"
-
-    endurance_str = "Non exécuté"
-    if test_results and "endurance" in test_results:
-        e_res = test_results["endurance"]
-        endurance_str = f"{e_res.get('status', 'N/A')} (Durée: {e_res.get('duration_min', 'N/A')}, Cycles: {e_res.get('cycles_completed', 0)})"
+        bench_gpu_str = f"Rendu: {g_res.get('fps', 'N/A')} | Score 3D: {g_res.get('score_3d', 'N/A')}"
 
     diag_rows = [
         [Paragraph("<b>Composant / Système</b>", bold_text), Paragraph("<b>Caractéristiques & Benchmark Réel Mesuré</b>", bold_text), Paragraph("<b>État de Vie</b>", bold_text)],
-        [Paragraph("Endurance 25 Min", normal_text), Paragraph(f"Test de Piétinement: {endurance_str}", normal_text), Paragraph("Stable" if "100%" in endurance_str else "Avertissement", normal_text)],
-        [Paragraph("Processeur (CPU)", normal_text), Paragraph(f"{cpu.get('model', 'N/A')} | Benchmark: {bench_cpu_str}", normal_text), Paragraph(synthesis['cpu_health'], normal_text)],
-        [Paragraph("Mémoire (RAM)", normal_text), Paragraph(f"{ram.get('total', 'N/A')} Total | MemTest: {bench_ram_str}", normal_text), Paragraph(synthesis['ram_health'], normal_text)],
+        [Paragraph("Endurance 25 Min", normal_text), Paragraph(f"Test de Piétinement: {endurance_str}", normal_text), Paragraph("Stable" if "PASSED" in endurance_str else "Avertissement", normal_text)],
+        [Paragraph("Processeur (CPU)", normal_text), Paragraph(f"{cpu.get('model', 'N/A')} | {cpu.get('cores', '')} | Stress ~90%: {bench_cpu_str}", normal_text), Paragraph(synthesis['cpu_health'], normal_text)],
+        [Paragraph("Mémoire (RAM)", normal_text), Paragraph(f"{ram.get('total', 'N/A')} Total | MemTest ~90%: {bench_ram_str}", normal_text), Paragraph(synthesis['ram_health'], normal_text)],
         [Paragraph("Disques Stockage", normal_text), Paragraph(f"{disks_str} | Benchmark IOPS: {bench_disk_str}", normal_text), Paragraph(synthesis['disk_health'], normal_text)],
-        [Paragraph("Carte Graphique (GPU)", normal_text), Paragraph(f"GPU Rendu | Benchmark 3D: {bench_gpu_str}", normal_text), Paragraph(synthesis['gpu_health'], normal_text)],
-        [Paragraph("Batterie", normal_text), Paragraph(f"{battery.get('percent', 'N/A')} - {battery.get('isCharging', 'N/A')} (Autonomie: {battery.get('lifetime', 'N/A')})", normal_text), Paragraph(synthesis['battery_health'], normal_text)],
+        [Paragraph("Carte Graphique (GPU)", normal_text), Paragraph(f"Rendu Matrices 3D | Benchmark: {bench_gpu_str}", normal_text), Paragraph(synthesis['gpu_health'], normal_text)],
+        [Paragraph("Batterie", normal_text), Paragraph(f"{battery.get('percent', 'N/A')} - {battery.get('isCharging', 'N/A')} ({battery.get('lifetime', 'N/A')})", normal_text), Paragraph(synthesis['battery_health'], normal_text)],
         [Paragraph("Système d'exploitation", normal_text), Paragraph(f"{os_info.get('distro', 'N/A')} (Uptime: {os_info.get('uptime', 'N/A')})", normal_text), Paragraph("Actif", normal_text)],
         [Paragraph("Antivirus / Sécurité", normal_text), Paragraph(auto_data.get("antivirus", {}).get("status", "Non disponible"), normal_text), Paragraph("Protégé", normal_text)]
     ]

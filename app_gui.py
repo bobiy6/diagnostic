@@ -37,32 +37,32 @@ class PCDiagnosticApp(ctk.CTk):
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_rowconfigure(7, weight=1)  # Spacer row
 
-        # Mister Genius Logo / Header
+        # Mister Genius Logo / Header (Aspect ratio preserved 1:1)
         logo_path = asset_utils.get_asset_path("assets/mister_genius_logo.png")
         if os.path.exists(logo_path):
             try:
                 pil_img = Image.open(logo_path)
-                self.logo_image = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(170, 50))
+                self.logo_image = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(110, 110))
                 self.logo_label = ctk.CTkLabel(self.sidebar, image=self.logo_image, text="")
-                self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 5))
+                self.logo_label.grid(row=0, column=0, padx=20, pady=(15, 5))
             except Exception:
                 self.logo_label = ctk.CTkLabel(
                     self.sidebar, text="MISTER GENIUS", font=ctk.CTkFont(size=20, weight="bold"), text_color="#0099DA"
                 )
-                self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 5))
+                self.logo_label.grid(row=0, column=0, padx=20, pady=(15, 5))
         else:
             self.logo_label = ctk.CTkLabel(
                 self.sidebar, text="MISTER GENIUS", font=ctk.CTkFont(size=20, weight="bold"), text_color="#0099DA"
             )
-            self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 5))
+            self.logo_label.grid(row=0, column=0, padx=20, pady=(15, 5))
 
         self.subtitle = ctk.CTkLabel(
             self.sidebar,
-            text="PC Diagnostic & Rapport",
+            text="Mister Genius SA\nPC Diagnostic & Rapport",
             font=ctk.CTkFont(size=12, weight="bold"),
-            text_color="#64748B"
+            text_color="#0099DA"
         )
-        self.subtitle.grid(row=1, column=0, padx=20, pady=(0, 20))
+        self.subtitle.grid(row=1, column=0, padx=20, pady=(0, 15))
 
         # Navigation Category Title
         nav_title = ctk.CTkLabel(
@@ -71,7 +71,7 @@ class PCDiagnosticApp(ctk.CTk):
             font=ctk.CTkFont(size=10, weight="bold"),
             text_color="#475569"
         )
-        nav_title.grid(row=2, column=0, padx=20, pady=(10, 5), sticky="w")
+        nav_title.grid(row=2, column=0, padx=20, pady=(5, 5), sticky="w")
 
         # Sidebar Navigation Buttons
         self.nav_buttons = {}
