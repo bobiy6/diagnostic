@@ -70,7 +70,7 @@ class DiagView(ctk.CTkFrame):
 
         lbl_thermal_t = ctk.CTkLabel(
             self.card_thermal,
-            text="🌡️  TEMPÉRATURES CAPTEURS EN DIRECT (MAJ RENAISSANTE 2S) :",
+            text="🌡️  TEMPÉRATURES CAPTEURS EN DIRECT (MAJ AUTOMATIQUE 2S) :",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color="#0099DA"
         )
@@ -147,15 +147,21 @@ class DiagView(ctk.CTkFrame):
         self.textbox_diag.grid(row=4, column=0, padx=0, pady=0, sticky="nsew")
 
         self.refresh_diag()
-        self._start_live_thermal_ticker()
+        self._start_live_auto_refresh()
 
-    def _start_live_thermal_ticker(self):
+    def _start_live_auto_refresh(self):
+        """
+        Auto-refreshes all live metrics (temperatures, CPU %, RAM Go / %, Disk & Battery) every 2 seconds.
+        """
         try:
-            live_temps = system_diag.get_live_temperatures()
-            cpu_str = live_temps["cpu_temp"]
-            gpu_str = live_temps["gpu_temp"]
-            disk_str = live_temps["disk_temp"]
-            color = live_temps["status_color"]
+            diag_data = system_diag.get_system_diagnostics()
+            self.auto_data = diag_data
+
+            live_temps = diag_data.get("liveTemperatures", {})
+            cpu_str = live_temps.get("cpu_temp", "N/A")
+            gpu_str = live_temps.get("gpu_temp", "N/A")
+            disk_str = live_temps.get("disk_temp", "N/A")
+            color = live_temps.get("status_color", "#10B981")
 
             self.lbl_cpu_temp.configure(text=f"CPU: {cpu_str}", text_color=color)
             self.lbl_gpu_temp.configure(text=f"GPU: {gpu_str}")
@@ -168,10 +174,30 @@ class DiagView(ctk.CTkFrame):
                 self.lbl_thermal_status.configure(text="● CHAUD (>65°C)", text_color="#F59E0B")
             else:
                 self.lbl_thermal_status.configure(text="● NOMINALE (<65°C)", text_color="#10B981")
+
+            # Update Stat Cards Live
+            cpu = diag_data.get("cpu", {})
+            ram = diag_data.get("ram", {})
+            disks = diag_data.get("disks", [])
+            batt = diag_data.get("battery", {})
+
+            self.card_cpu["line1"].configure(text=f"Charge: {cpu.get('usage', 'N/A')}")
+            self.card_cpu["line2"].configure(text=f"Cœurs: {cpu.get('cores', 'N/A')} ({cpu.get('freq', 'N/A')})")
+
+            self.card_ram["line1"].configure(text=f"Total: {ram.get('total', 'N/A')}")
+            self.card_ram["line2"].configure(text=f"Utilisé: {ram.get('used', 'N/A')} ({ram.get('usedPercent', 'N/A')})")
+
+            main_disk = disks[0] if disks else {}
+            self.card_disk["line1"].configure(text=f"Libre: {main_disk.get('free', 'N/A')}")
+            self.card_disk["line2"].configure(text=f"État: {main_disk.get('healthStatus', 'N/A')}")
+
+            self.card_batt["line1"].configure(text=f"Niveau: {batt.get('percent', 'N/A')}")
+            self.card_batt["line2"].configure(text=f"Santé: {batt.get('health', 'N/A')}")
+
         except Exception:
             pass
         finally:
-            self.after(2000, self._start_live_thermal_ticker)
+            self.after(2000, self._start_live_auto_refresh)
 
     def launch_sys_tool(self, cmd):
         try:
@@ -233,7 +259,7 @@ class DiagView(ctk.CTkFrame):
         self.card_cpu["line2"].configure(text=f"Cœurs: {cpu.get('cores', 'N/A')} ({cpu.get('freq', 'N/A')})")
 
         self.card_ram["line1"].configure(text=f"Total: {ram.get('total', 'N/A')}")
-        self.card_ram["line2"].configure(text=f"Utilisé: {ram.get('usedPercent', 'N/A')}")
+        self.card_ram["line2"].configure(text=f"Utilisé: {ram.get('used', 'N/A')} ({ram.get('usedPercent', 'N/A')})")
 
         main_disk = disks[0] if disks else {}
         self.card_disk["line1"].configure(text=f"Libre: {main_disk.get('free', 'N/A')}")
