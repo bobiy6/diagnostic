@@ -38,4 +38,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/mister_genius_logo.ico',
 )

@@ -9,6 +9,7 @@ PyInstaller.__main__.run([
     '--onefile',
     '--noconsole',
     '--name=PC_Diagnostic_Rapport_MisterGenius',
+    '--icon=assets/mister_genius_logo.ico',
     f'--add-data={ctk_path}{os.pathsep}customtkinter/',
     f'--add-data=assets{os.pathsep}assets'
 ])

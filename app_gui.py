@@ -1,10 +1,11 @@
 import os
 import sys
+import ctypes
 import multiprocessing
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
-from PIL import Image
+from PIL import Image, ImageTk
 
 from gui_client_view import ClientView
 from gui_questionnaire_view import QuestionnaireView
@@ -21,9 +22,33 @@ class PCDiagnosticApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
+        # Register Windows AppUserModelID so Windows taskbar displays custom icon instead of generic Python icon
+        if sys.platform == "win32":
+            try:
+                myappid = 'mistergenius.pcdiagnostic.app.2.4'
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            except Exception:
+                pass
+
         self.title("Mister Genius SA - PC Diagnostic & Rapport Technique")
         self.geometry("1100x760")
         self.minsize(980, 680)
+
+        # Set Window Titlebar and Taskbar Icon
+        ico_path = asset_utils.get_asset_path("assets/mister_genius_logo.ico")
+        png_path = asset_utils.get_asset_path("assets/mister_genius_logo.png")
+        if os.path.exists(ico_path) and sys.platform == "win32":
+            try:
+                self.iconbitmap(ico_path)
+            except Exception:
+                pass
+        elif os.path.exists(png_path):
+            try:
+                img = Image.open(png_path)
+                self._app_icon = ImageTk.PhotoImage(img)
+                self.iconphoto(True, self._app_icon)
+            except Exception:
+                pass
 
         # Configure root layout grid: Left Sidebar (col 0), Right Content Area (col 1)
         self.grid_columnconfigure(0, weight=0)
@@ -37,7 +62,7 @@ class PCDiagnosticApp(ctk.CTk):
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_rowconfigure(7, weight=1)  # Spacer row
 
-        # Mister Genius Logo / Header (Aspect ratio preserved 1:1)
+        # Mister Genius Logo / Header (Aspect ratio preserved)
         logo_path = asset_utils.get_asset_path("assets/mister_genius_logo.png")
         if os.path.exists(logo_path):
             try:
