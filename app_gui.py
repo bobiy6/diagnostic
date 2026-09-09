@@ -1,6 +1,7 @@
 import os
 import sys
 import ctypes
+import threading
 import multiprocessing
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -12,17 +13,80 @@ from gui_questionnaire_view import QuestionnaireView
 from gui_diag_view import DiagView
 from gui_tests_view import TestsView
 from gui_synthesis_view import SynthesisView
+import system_diag
 import pdf_report
 import asset_utils
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
+class SplashScreen(ctk.CTkToplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        self.overrideredirect(True)
+        self.configure(fg_color="#0F172A")
+
+        width = 520
+        height = 340
+
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        pos_x = (screen_w // 2) - (width // 2)
+        pos_y = (screen_h // 2) - (height // 2)
+
+        self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+        self.attributes("-topmost", True)
+
+        # Card container with cyan border
+        container = ctk.CTkFrame(self, fg_color="#0F172A", corner_radius=16, border_width=2, border_color="#0099DA")
+        container.pack(fill="both", expand=True, padx=2, pady=2)
+
+        # Logo
+        logo_path = asset_utils.get_asset_path("assets/mister_genius_logo.png")
+        if os.path.exists(logo_path):
+            try:
+                pil_img = Image.open(logo_path)
+                self.logo_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(100, 100))
+                self.lbl_logo = ctk.CTkLabel(container, image=self.logo_img, text="")
+                self.lbl_logo.pack(pady=(25, 5))
+            except Exception:
+                self.lbl_logo = ctk.CTkLabel(
+                    container, text="MISTER GENIUS SA", font=ctk.CTkFont(size=22, weight="bold"), text_color="#0099DA"
+                )
+                self.lbl_logo.pack(pady=(25, 5))
+        else:
+            self.lbl_logo = ctk.CTkLabel(
+                container, text="MISTER GENIUS SA", font=ctk.CTkFont(size=22, weight="bold"), text_color="#0099DA"
+            )
+            self.lbl_logo.pack(pady=(25, 5))
+
+        self.lbl_title = ctk.CTkLabel(
+            container, text="Mister Genius SA - PC Diagnostic", font=ctk.CTkFont(size=16, weight="bold"), text_color="#F8FAFC"
+        )
+        self.lbl_title.pack(pady=(2, 2))
+
+        self.lbl_tagline = ctk.CTkLabel(
+            container, text="« Il y a toujours une solution »", font=ctk.CTkFont(size=12, slant="italic"), text_color="#0099DA"
+        )
+        self.lbl_tagline.pack(pady=(0, 20))
+
+        # Progress bar & Status
+        self.progress_bar = ctk.CTkProgressBar(container, progress_color="#0099DA", width=420, height=10)
+        self.progress_bar.set(0)
+        self.progress_bar.pack(pady=(0, 10))
+
+        self.lbl_status = ctk.CTkLabel(
+            container, text="Chargement des composants du PC...", font=ctk.CTkFont(size=11, weight="bold"), text_color="#94A3B8"
+        )
+        self.lbl_status.pack(pady=(0, 15))
+
+
 class PCDiagnosticApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # Register Windows AppUserModelID so Windows taskbar displays custom icon instead of generic Python icon
+        # Register Windows AppUserModelID
         if sys.platform == "win32":
             try:
                 myappid = 'mistergenius.pcdiagnostic.app.2.4'
@@ -30,11 +94,13 @@ class PCDiagnosticApp(ctk.CTk):
             except Exception:
                 pass
 
+        self.withdraw()  # Hide main window initially during splash loading
+
         self.title("Mister Genius SA - PC Diagnostic & Rapport Technique")
         self.geometry("1100x760")
         self.minsize(980, 680)
 
-        # Set Window Titlebar and Taskbar Icon
+        # Set Window Icon
         ico_path = asset_utils.get_asset_path("assets/mister_genius_logo.ico")
         png_path = asset_utils.get_asset_path("assets/mister_genius_logo.png")
         if os.path.exists(ico_path) and sys.platform == "win32":
@@ -50,7 +116,37 @@ class PCDiagnosticApp(ctk.CTk):
             except Exception:
                 pass
 
-        # Configure root layout grid: Left Sidebar (col 0), Right Content Area (col 1)
+        # Display Splash Screen
+        self.splash = SplashScreen(self)
+        self.splash.update()
+
+        # Begin background initialization
+        thread = threading.Thread(target=self._init_app_components, daemon=True)
+        thread.start()
+
+    def _update_splash_progress(self, message, progress):
+        try:
+            self.splash.progress_bar.set(progress)
+            self.splash.lbl_status.configure(text=message)
+            self.splash.update()
+        except Exception:
+            pass
+
+    def _init_app_components(self):
+        # Step 1: Detect PC Hardware Specs (DMI / WMI)
+        self.after(0, self._update_splash_progress, "Détection des spécifications matériel (Marque, Modèle, Série)...", 0.25)
+        _ = system_diag.get_auto_pc_specs()
+
+        # Step 2: Initialize System Diagnostics Sensors & Metrics
+        self.after(0, self._update_splash_progress, "Initialisation des capteurs thermiques et métriques CPU/RAM...", 0.60)
+        _ = system_diag.get_system_diagnostics()
+
+        # Step 3: Instantiate UI Layout Components
+        self.after(0, self._update_splash_progress, "Construction de l'interface utilisateur Mister Genius SA...", 0.85)
+        self.after(0, self._build_main_gui)
+
+    def _build_main_gui(self):
+        # Configure root layout grid
         self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -62,7 +158,7 @@ class PCDiagnosticApp(ctk.CTk):
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_rowconfigure(7, weight=1)  # Spacer row
 
-        # Mister Genius Logo / Header (Aspect ratio preserved)
+        # Mister Genius Logo / Header
         logo_path = asset_utils.get_asset_path("assets/mister_genius_logo.png")
         if os.path.exists(logo_path):
             try:
@@ -213,6 +309,17 @@ class PCDiagnosticApp(ctk.CTk):
             view.grid(row=0, column=0, sticky="nsew")
 
         self.select_view("client")
+
+        # Complete splash loading and show main window
+        self._update_splash_progress("Lancement de l'application...", 1.0)
+        self.after(300, self._finish_splash_and_reveal_main)
+
+    def _finish_splash_and_reveal_main(self):
+        try:
+            self.splash.destroy()
+        except Exception:
+            pass
+        self.deiconify()
 
     def select_view(self, key):
         titles = {
